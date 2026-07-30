@@ -131,7 +131,7 @@ const PASSES = [
   { id: "month", name: "무제한 월 구독", price: 4900, ms: 30 * 24 * 3600e3 },
 ];
 const fmt = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-const HEART_PRICE_POINTS = 3000; // 포인트로 하트 1개 구매 (포인트의 유일한 용도)
+const HEART_PRICE_POINTS = 5000; // 포인트로 하트 1개 구매 (포인트의 유일한 용도)
 
 /* ── 아바타 꾸미기: 스킨(색상 테마) · 심볼(뱃지) ──
    포인트는 오직 "하트 구매"에만 씁니다(현금 → 포인트 → 하트, 단방향).
@@ -685,7 +685,11 @@ function App() {
     setLoginError(null); setLoggingIn(true);
     try {
       const profile = await loginWithKakao();
-      applyProfileToState(profile);
+      // kakao-auth 함수가 돌려주는 profile 객체는 최신 hearts/updated_at을 포함하지
+      // 않을 수 있어(로그아웃 후 재로그인 시 하트가 다시 꽉 차 보이는 버그의 원인),
+      // DB에서 전체 행(select *)을 다시 읽어와 그 값으로 상태를 복원합니다.
+      const full = await loadProfile(profile.id);
+      applyProfileToState(full || profile);
       setAccount({ id: profile.id, nick: profile.nickname });
       track("signup", { nick: profile.nickname });
       setScreen("home");
@@ -971,7 +975,7 @@ function App() {
             <span style={{ fontWeight: 900, fontSize: 19, letterSpacing: -0.5 }}>IQ BATTLE</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <button onClick={() => { if (!unlimited && hearts < MAX_HEARTS) toPaywall(false); }} style={{ display: "flex", alignItems: "center", gap: 6, background: C.card, border: `1px solid ${C.line}`, padding: "9px 12px", borderRadius: 13, fontWeight: 800, boxShadow: C.shadow, cursor: "pointer", fontFamily: FONT, color: C.text }}>
+            <button onClick={() => { if (!unlimited && hearts < MAX_HEARTS && screen !== "battle" && screen !== "matching") toPaywall(false); }} style={{ display: "flex", alignItems: "center", gap: 6, background: C.card, border: `1px solid ${C.line}`, padding: "9px 12px", borderRadius: 13, fontWeight: 800, boxShadow: C.shadow, cursor: screen === "battle" || screen === "matching" ? "default" : "pointer", fontFamily: FONT, color: C.text }}>
               {unlimited ? <span style={{ display: "flex", alignItems: "center", gap: 5, color: C.gold }}><Ico name="bolt" c={C.gold} s={15} /><span style={{ fontSize: 13 }}>무제한</span></span>
                 : <><span style={{ display: "flex", gap: 2 }}>{[0, 1, 2].map((i) => <Heart key={i} s={16} on={i < hearts} />)}</span>{hearts < MAX_HEARTS && <span style={{ fontSize: 11, color: C.muted, fontVariantNumeric: "tabular-nums" }}>{fmt(regen)}</span>}</>}
             </button>
