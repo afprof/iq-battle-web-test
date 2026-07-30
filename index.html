@@ -8,12 +8,17 @@
     html, body, #root { height: 100%; margin: 0; padding: 0; background: #0b0818; }
     * { -webkit-tap-highlight-color: transparent; }
   </style>
+  <!-- React 18 (UMD) -->
   <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
   <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+  <!-- Babel standalone: JSX 파일을 브라우저(WebView)에서 바로 변환합니다.
+       별도 빌드 단계(webpack/vite) 없이 app.jsx를 그대로 실행하기 위한 용도입니다.
+       나중에 성능/용량 최적화가 필요하면(오프라인 지원 포함) 이 부분을 Vite 빌드로
+       교체해 로컬 번들로 바꾸는 것을 권장합니다 (아래 가이드 참고). -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
 </head>
 <body>
   <div id="root"></div>
-  <script type="text/babel" data-presets="react" src="app.jsx"></script>
+  <script type="text/babel" data-presets="react" src="app.jsx?v=20260731b"></script>
 </body>
 </html>
