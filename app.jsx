@@ -407,14 +407,21 @@ function pickAdaptive(pool, usedIds, theta) {
   return top[Math.floor(Math.random() * top.length)];
 }
 const TAGS = ["수열", "연산", "논리", "언어", "문자", "추론", "공간", "기억"];
+const MIN_PER_TAG = 25; // 유형별 최소 이 개수는 있어야 반복 체감이 안 남
 let topUpInFlight = false; // 같은 세션에서 요청이 겹치지 않도록 간단한 락
-function maybeTopUpBank(bank, theta) {
+// 이전 버전은 "현재 theta 근방 난이도 후보가 전체 유형 통틀어 12개 이상이면 충분"으로
+// 판단했는데, 폴백 풀(57문항)만으로도 이 조건을 항상 만족해버려서(유형 구분 없이 셌기
+// 때문에) 실제로는 거의 트리거되지 않는 버그가 있었습니다. 유형(tag)별로 문항 수가
+// 충분한지 확인하도록 수정 — 부족한 유형이 있으면 그 유형을 채웁니다.
+function maybeTopUpBank(bank, theta, onGrown) {
   if (topUpInFlight) return;
-  const nearby = bank.filter((q) => Math.abs(q.b - theta) < 0.75);
-  if (nearby.length >= 12) return; // 근처 난이도 후보가 충분하면 그냥 둠
+  const counts = TAGS.map((tag) => ({ tag, n: bank.filter((q) => q.tag === tag).length }));
+  const thin = counts.filter((c) => c.n < MIN_PER_TAG).sort((a, b) => a.n - b.n);
+  if (!thin.length) return; // 모든 유형이 충분하면 그냥 둠
   topUpInFlight = true;
-  const tag = TAGS[Math.floor(Math.random() * TAGS.length)];
-  requestMoreQuestions(tag, theta, 6).finally(() => { topUpInFlight = false; });
+  requestMoreQuestions(thin[0].tag, theta, 10)
+    .then(() => { if (onGrown) return loadQuestionBank().then((b) => b && b.length && onGrown(b)); })
+    .finally(() => { topUpInFlight = false; });
 }
 function diffLabel(b) {
   const n = b < -1.1 ? 1 : b < -0.3 ? 2 : b < 0.5 ? 3 : b < 1.2 ? 4 : 5;
@@ -723,7 +730,8 @@ function App() {
     const simFoe = { name: FOE_NAMES[Math.floor(rand(0, FOE_NAMES.length))], rating: Math.round(rating + rand(-90, 90)), ghost: null };
     const excluded = new Set(recentIdsRef.current);
     const firstQ = pickAdaptive(bankRef.current, excluded, 0);
-    maybeTopUpBank(bankRef.current, 0); // 근처 난이도 후보가 부족하면 조용히 AI 보충 요청
+    // 유형별 문항이 부족하면 조용히 보충 요청 (성공하면 이번 세션에도 즉시 반영)
+    maybeTopUpBank(bankRef.current, 0, (freshBank) => { bankRef.current = freshBank; });
     setFoe(simFoe);
     const t0 = Date.now();
     loadGhostPool(rating, account?.id).then((pool) => {
