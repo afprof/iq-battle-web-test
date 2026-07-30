@@ -399,12 +399,29 @@ function fisherSE(responses, theta) {
   responses.forEach((r) => { const p = pIRT(theta, r.b, r.a); info += r.a * r.a * p * (1 - p); });
   return info > 1e-6 ? 1 / Math.sqrt(info) : 2.5;
 }
-function pickAdaptive(pool, usedIds, theta) {
-  const cands = pool.filter((q) => !usedIds.has(q.id));
+// tag가 주어지면 그 유형 안에서만 후보를 찾고(한 판(8문제) 동안 유형이 겹치지 않게
+// 하기 위함 — 안 그러면 난이도만 보고 고르다 보니 후보가 많은 특정 유형(예: 수열)만
+// 계속 나오는 것처럼 느껴지는 문제가 있었습니다), 그 유형에 후보가 없으면(문항이
+// 부족한 유형 등) 안전하게 전체 풀에서 고릅니다.
+function pickAdaptive(pool, usedIds, theta, tag) {
+  let cands = pool.filter((q) => !usedIds.has(q.id));
+  if (tag) {
+    const byTag = cands.filter((q) => q.tag === tag);
+    if (byTag.length) cands = byTag;
+  }
+  if (!cands.length) cands = pool.filter((q) => !usedIds.has(q.id));
   if (!cands.length) return pool[Math.floor(Math.random() * pool.length)];
   const sorted = [...cands].sort((x, y) => Math.abs(x.b - theta) - Math.abs(y.b - theta));
   const top = sorted.slice(0, Math.min(6, sorted.length));
   return top[Math.floor(Math.random() * top.length)];
+}
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
 }
 const TAGS = ["수열", "연산", "논리", "언어", "문자", "추론", "공간", "기억"];
 const MIN_PER_TAG = 25; // 유형별 최소 이 개수는 있어야 반복 체감이 안 남
@@ -733,7 +750,11 @@ function App() {
     setStake(s); setScreen("matching");
     const simFoe = { name: FOE_NAMES[Math.floor(rand(0, FOE_NAMES.length))], rating: Math.round(rating + rand(-90, 90)), ghost: null };
     const excluded = new Set(recentIdsRef.current);
-    const firstQ = pickAdaptive(bankRef.current, excluded, 0);
+    // 한 판(Q_PER_MATCH=8) 동안 8개 유형(TAGS.length=8)이 하나씩 골고루 나오도록
+    // 유형 순서를 매 판 랜덤하게 섞어 고정합니다 — 이전에는 난이도만 보고 골라서
+    // 후보가 많은 유형(수열 등)만 계속 나오는 것처럼 느껴지는 문제가 있었습니다.
+    const tagOrder = shuffle(TAGS);
+    const firstQ = pickAdaptive(bankRef.current, excluded, 0, tagOrder[0]);
     // 유형별 문항이 부족하면 조용히 보충 요청 (성공하면 이번 세션에도 즉시 반영)
     maybeTopUpBank(bankRef.current, 0, (freshBank) => { bankRef.current = freshBank; });
     setFoe(simFoe);
@@ -746,11 +767,11 @@ function App() {
         f = { name: g.nick, rating: g.rating, ghost: g };
       }
       setFoe(f);
-      matchSetupRef.current = { foe: f, firstQ };
+      matchSetupRef.current = { foe: f, firstQ, tagOrder };
       const elapsed = Date.now() - t0;
       setTimeout(() => begin(), Math.max(300, 1800 - elapsed));
     }).catch(() => {
-      matchSetupRef.current = { foe: simFoe, firstQ };
+      matchSetupRef.current = { foe: simFoe, firstQ, tagOrder };
       setTimeout(() => begin(), 1800);
     });
   }
@@ -768,7 +789,7 @@ function App() {
     R.current = {
       correct: 0, answered: 0, time: 0, fCorrect: 0, fTime: 0, combo: 0, maxIQ: 100,
       bestStreak: R.current.bestStreak, log: [], responses: [],
-      qs: [setup.firstQ], foe: setup.foe, qLock: -1,
+      qs: [setup.firstQ], foe: setup.foe, qLock: -1, tagOrder: setup.tagOrder || TAGS,
     };
     setQs(R.current.qs);
     setBqi(0); setMyScore(0); setFoeScore(0); setPicked(null); setFoePicked(null);
@@ -822,7 +843,8 @@ function App() {
     setTimeout(() => {
       if (idx + 1 < Q_PER_MATCH) {
         const used = new Set([...r.qs.map((x) => x.id), ...recentIdsRef.current]);
-        const nq = pickAdaptive(bankRef.current, used, theta);
+        const nextTag = (r.tagOrder || TAGS)[idx + 1];
+        const nq = pickAdaptive(bankRef.current, used, theta, nextTag);
         r.qs = [...r.qs, nq];
         setQs(r.qs);
         setBqi(idx + 1); launch(idx + 1);
