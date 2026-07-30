@@ -761,7 +761,6 @@ function App() {
     setQs(R.current.qs);
     setBqi(0); setMyScore(0); setFoeScore(0); setPicked(null); setFoePicked(null);
     setLiveIQ(100); setLive({ top: 50, rank: 640000 }); setCombo(0); setOutcome(null);
-    setAiCoach({ loading: false, data: null, error: null });
     setScreen("battle"); launch(0);
   }
   function launch(idx) {
