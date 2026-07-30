@@ -213,7 +213,7 @@ function loginWithKakao() {
         try {
           const res = await fetch(SUPABASE_FN_URL, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
             body: JSON.stringify({ kakaoAccessToken: authObj.access_token }),
           });
           const { token, profile, error } = await res.json();
