@@ -150,6 +150,20 @@
     "규칙: f(n) = f(n-1) + f(n-2) - 1, f(1)=1, f(2)=2 일 때 f(4)는?": "Rule: f(n) = f(n-1) + f(n-2) - 1, f(1)=1, f(2)=2. What is f(4)?",
     "정십이면체의 면은 몇 개?": "How many faces does a regular dodecahedron have?", "다음 규칙에서 빠진 것은? CE, FH, IK, ?": "What is missing in this pattern? CE, FH, IK, ?"
   };
+  Object.assign(D, {
+    "회 남음": " left", "Lv는 대결할수록 오르는": "Lv rises as you battle —", "활동 지표": "activity", "점은 승패로 오르내리는": " pts moves with wins & losses —",
+    "※ 충전한 포인트는 대결 베팅과": "※ Top-up points are used for betting in battles and", "하트 구매(": "buying hearts (", "에 쓰는 게임 내 재화입니다.": " — they're in-game currency.",
+    "실제 참가자": "Players:", "매칭돼요.": ".", "전체": "Rank",
+    "대결을 할수록 쌓이는": "A metric that grows as you battle:",
+    "입니다. 실력(레이팅)과 달리 져도 오릅니다. 대결마다 XP를 얻고(승리 60 + 정답 수 × 8 등),": ". Unlike rating, it rises even when you lose. You earn XP each battle (win 60 + correct answers × 8, etc.), and you level up each time you collect ",
+    "를 채우면 레벨업합니다. 현재 Lv.": ". Current Lv.",
+    "매칭되는 상대는 레이팅이 비슷한": "Your opponent may be",
+    "계속 대결하고 레이팅·리포트·랭킹을": "Keep battling to build your rating, reports and ranking.",
+    "2모수 로지스틱(2PL) 문항반응이론으로 추정 · 문항마다 난이도가 실력에 맞춰 자동 조정(적응형 검사)됩니다": "Estimated with 2-parameter logistic (2PL) item response theory · difficulty adapts to your skill on every question (adaptive test)",
+    "경기 · 꾸준히 상승 중": " matches · steadily rising", "(정답률": " (accuracy",
+    "유형을 집중 연습하면 IQ 점수를 가장 빠르게 끌어올릴 수 있어요.": " type — focusing your practice here is the fastest way to raise your IQ.",
+    "※ 충전한 포인트는": "※ Top-up points are"
+  });
   /* dynamic patterns: [regex, replacement] */
   var P = [
     [/^(\d[\d,.]*)초$/, "$1s"],
@@ -164,7 +178,9 @@
     [/^(\d+)회 남음$/, "$1 left"],
     [/^상위 (\d[\d.]*)%$/, "Top $1%"],
     [/^전국 (\d[\d,]*)위$/, "World #$1"],
-    [/^(\d+)경기$/, "$1 matches"]
+    [/^(\d+)경기$/, "$1 matches"],
+    [/^(\d+)도$/, "$1°"],
+    [/^(\d+) · (.+)$/, function (_, a, b) { return a + " · " + (D[b] || b); }]
   ];
 
   var lang = "ko";
@@ -182,7 +198,7 @@
       for (var i = 0; i < P.length; i++) if (P[i][0].test(core)) { v = core.replace(P[i][0], P[i][1]); break; }
     }
     if (v === undefined) return null;
-    return (/^\s/.test(v) ? "" : m[1]) + v + (/\s$/.test(v) ? "" : m[3]);
+    return (/^[\s.,;:!?)\]]/.test(v) ? "" : m[1]) + v + (/\s$/.test(v) ? "" : m[3]);
   }
   window.__iqbTr = tr; window.__iqbDict = D;
 
