@@ -451,7 +451,7 @@ function diffLabel(b) {
   return "★".repeat(n) + "☆".repeat(5 - n);
 }
 
-const tierOf = (r) => r < 1100 ? { name: "브론즈", color: "#c98d5b" } : r < 1300 ? { name: "실버", color: "#c7ccda" } : r < 1500 ? { name: "골드", color: C.gold } : r < 1700 ? { name: "플래티넘", color: "#5ee0d0" } : { name: "다이아", color: "#8ab6ff" };
+const tierOf = (r) => r < 100 ? { name: "브론즈", color: "#c98d5b" } : r < 300 ? { name: "실버", color: "#c7ccda" } : r < 600 ? { name: "골드", color: C.gold } : r < 1000 ? { name: "플래티넘", color: "#5ee0d0" } : { name: "다이아", color: "#8ab6ff" };
 const rand = (a, b) => a + Math.random() * (b - a);
 const cdf = (z) => 1 / (1 + Math.exp(-1.702 * z));
 const pctlOf = (iq) => { const p = cdf((iq - 100) / 15) * 100; return { top: Math.max(0.1, Math.round((100 - p) * 10) / 10), rank: 1 + LIVE_POOL.filter((r) => r.iq > iq).length }; };
@@ -530,7 +530,7 @@ const Bar = ({ label, pct, val, color }) => (
 function App() {
   const [screen, setScreen] = useState("home");
   const [points, setPoints] = useState(5000);
-  const [rating, setRating] = useState(1240);
+  const [rating, setRating] = useState(0);
   const [streak, setStreak] = useState(0);
   const [level, setLevel] = useState(7);
   const [xp, setXp] = useState(140);
@@ -595,7 +595,7 @@ function App() {
   const bankRef = useRef(POOL); // DB 조회 전까지는 폴백 풀 사용
   const recentIdsRef = useRef([]); // recentQuestionIds를 타이머 체인에서도 안전하게 읽기 위한 ref
   const tier = tierOf(rating);
-  const nextTierGap = rating < 1100 ? 1100 - rating : rating < 1300 ? 1300 - rating : rating < 1500 ? 1500 - rating : rating < 1700 ? 1700 - rating : null;
+  const nextTierGap = rating < 100 ? 100 - rating : rating < 300 ? 300 - rating : rating < 600 ? 600 - rating : rating < 1000 ? 1000 - rating : null;
 
   // 1초 틱: 하트 회복 + 무제한 만료 계산
   useEffect(() => {
@@ -663,7 +663,7 @@ function App() {
   }, []);
 
   function applyProfileToState(p) {
-    setRating(p.rating ?? 1240); setLevel(p.level ?? 1); setXp(p.xp ?? 0);
+    setRating(p.rating ?? 0); setLevel(p.level ?? 1); setXp(p.xp ?? 0);
     setPoints(p.points ?? 5000); setStreak(p.streak ?? 0);
     setIqHistory(p.iq_history ?? [112, 119, 116, 124, 121]); setCatAgg(p.cat_agg ?? {});
     setOwned(p.owned ?? {}); setUnlimitedUntil(p.unlimited_until ? new Date(p.unlimited_until).getTime() : 0);
@@ -727,14 +727,14 @@ function App() {
     // 애초에 이 두 컬럼은 클라이언트 권한으로 수정할 수도 없습니다.
     if (account?.id) {
       await saveProfile(account.id, {
-        rating: 1240, level: 1, xp: 0, points: 5000, streak: 0,
+        rating: 0, level: 1, xp: 0, points: 5000, streak: 0,
         iq_history: [112, 119, 116, 124, 121], cat_agg: {},
         equipped_skin: "default", equipped_badge: "none", recent_question_ids: [],
         hearts: MAX_HEARTS,
       });
     }
     logoutKakao();
-    setRating(1240); setLevel(1); setXp(0); setPoints(5000); setStreak(0);
+    setRating(0); setLevel(1); setXp(0); setPoints(5000); setStreak(0);
     setIqHistory([112, 119, 116, 124, 121]); setCatAgg({});
     setEquippedSkin("default"); setEquippedBadge("none"); setRecentQuestionIds([]);
     setHearts(MAX_HEARTS); setRegen(HEART_REGEN); setAccount(null); setScreen("home");
@@ -752,7 +752,7 @@ function App() {
     if (!unlimited) setHearts((h) => h - 1); // 하트 1개 소모
     track("match_start", { stake: s });
     setStake(s); setScreen("matching");
-    const simFoe = { name: FOE_NAMES[Math.floor(rand(0, FOE_NAMES.length))], rating: Math.round(rating + rand(-90, 90)), ghost: null };
+    const simFoe = { name: FOE_NAMES[Math.floor(rand(0, FOE_NAMES.length))], rating: Math.max(0, Math.round(rating + rand(-40, 40))), ghost: null };
     const excluded = new Set(recentIdsRef.current);
     // 한 판(Q_PER_MATCH=8) 동안 8개 유형(TAGS.length=8)이 하나씩 골고루 나오도록
     // 유형 순서를 매 판 랜덤하게 섞어 고정합니다 — 이전에는 난이도만 보고 골라서
@@ -838,7 +838,7 @@ function App() {
       const gl = foeNow.ghost.log[idx % foeNow.ghost.log.length];
       fr = !!gl.correct; fSpent = gl.time ?? rand(2.2, Q_TIME - 1);
     } else {
-      const p = Math.max(0.4, Math.min(0.9, 0.55 + ((foeNow?.rating ?? 1200) - 1200) / 2000));
+      const p = Math.max(0.45, Math.min(0.9, 0.5 + (foeNow?.rating ?? 0) / 2500));
       fr = Math.random() < p; fSpent = rand(2.2, Q_TIME - 1);
     }
     r.fTime += fSpent; if (fr) r.fCorrect++;
@@ -860,7 +860,7 @@ function App() {
     let res = (r.correct > r.fCorrect || (r.correct === r.fCorrect && r.time <= r.fTime)) ? "win" : (r.correct === r.fCorrect ? "tie" : "lose");
     let dP = 0, dR = 0, ns = streak;
     if (res === "win") { dP = stake; dR = 24; ns = streak + 1; } else if (res === "lose") { dP = -stake; dR = -19; ns = 0; }
-    setPoints((v) => v + dP); setRating((v) => Math.max(800, v + dR)); setStreak(ns);
+    setPoints((v) => v + dP); setRating((v) => Math.max(0, v + dR)); setStreak(ns);
     R.current.bestStreak = Math.max(R.current.bestStreak, ns);
     const gain = (res === "win" ? 60 : 25) + r.correct * 8;
     let nx = xp + gain, nl = level, up = false;
@@ -885,7 +885,7 @@ function App() {
 
     // 공유 저장: 이 경기 기록을 match_logs에 반영 (비동기, 실패해도 게임에 영향 없음)
     // 랭킹은 profiles 테이블 위의 뷰라서 위쪽 saveProfile 저장만으로 자동 반영됩니다.
-    const newRating = Math.max(800, rating + dR);
+    const newRating = Math.max(0, rating + dR);
     if (account?.id) {
       saveMatchLog(account.id, {
         nick: account.nick, rating: newRating, result: res, iq: finalIQ, theta: finalTheta, se: finalSE,
@@ -1393,8 +1393,7 @@ function App() {
             {[
               { id: "report1", name: "방금 결과 확인권", desc: "직전 대결의 최종 IQ · 상위% · 전국 순위만", price: 500 },
               { id: "report2", name: "프리미엄 리포트 (평생)", desc: "IQ 추이·IRT 능력추정·강약점 전체", price: 2900 },
-              { id: "adfree", name: "광고 제거 (월)", desc: "대결 사이 광고 없이 몰입", price: 3900 },
-              { id: "pass", name: "시즌 배틀패스", desc: "보상 트랙 + 스킨 + 데일리 포인트", price: 9900 },
+              { id: "adfree", name: "광고 제거 (1회 결제)", desc: "한 번 결제로 대결 사이 광고 없이 몰입", price: 1000 },
             ].map((it, i) => (
               <Card key={it.id} style={{ padding: 18, marginBottom: 12, display: "flex", alignItems: "center", gap: 14 }}>
                 <div style={{ width: 44, height: 44, borderRadius: 12, background: `linear-gradient(135deg, ${[C.me, C.violetDeep, C.indigo, C.gold][i]}, ${[C.violet, C.indigo, C.violet, C.goldDeep][i]})`, flexShrink: 0 }} />
@@ -1523,11 +1522,11 @@ function App() {
 }
 
 const TIERS = [
-  { name: "브론즈", min: 0, max: "1099", color: "#c98d5b" },
-  { name: "실버", min: 1100, max: "1299", color: "#c7ccda" },
-  { name: "골드", min: 1300, max: "1499", color: "#ffce4d" },
-  { name: "플래티넘", min: 1500, max: "1699", color: "#5ee0d0" },
-  { name: "다이아", min: 1700, max: "∞", color: "#8ab6ff" },
+  { name: "브론즈", min: 0, max: "99", color: "#c98d5b" },
+  { name: "실버", min: 100, max: "299", color: "#c7ccda" },
+  { name: "골드", min: 300, max: "599", color: "#ffce4d" },
+  { name: "플래티넘", min: 600, max: "999", color: "#5ee0d0" },
+  { name: "다이아", min: 1000, max: "∞", color: "#8ab6ff" },
 ];
 function InfoModal({ rating, level, xp, onClose }) {
   const cur = TIERS.reduce((acc, t) => (rating >= t.min ? t.name : acc), "브론즈");
