@@ -4,6 +4,9 @@
   var KO_RE = /[가-힣₩]/;
   /* 영어 모드: 원화(₩) 금액을 환율 ₩1,000 = $1 로 달러 표시 */
   function usd(s) { return s.replace(/₩\s?(\d[\d,]*)/g, function (_, n) { return "$" + (parseInt(n.replace(/,/g, ""), 10) / 1000).toFixed(2); }); }
+  /* 중국어 모드: 원화(₩) 금액을 위안(¥)으로 표시 — 환율 ₩1,000 = ¥5 (아래 상수로 조정) */
+  var CNY_PER_1000_KRW = 5;
+  function cny(s) { return s.replace(/₩\s?(\d[\d,]*)/g, function (_, n) { return "¥" + (parseInt(n.replace(/,/g, ""), 10) / 1000 * CNY_PER_1000_KRW).toFixed(2); }); }
   var D = {
     /* tags */
     "수열": "Sequence", "연산": "Arithmetic", "논리": "Logic", "언어": "Verbal", "추론": "Reasoning", "공간": "Spatial", "기억": "Memory", "문자": "Letters",
@@ -202,7 +205,7 @@
 
   var lang = "ko";
   try { lang = localStorage.getItem("iqb_lang") || ""; } catch (e) {}
-  if (lang !== "ko" && lang !== "en") lang = /^ko/i.test(navigator.language || "ko") ? "ko" : "en";
+  if (lang !== "ko" && lang !== "en" && lang !== "zh") { var nl = navigator.language || "ko"; lang = /^ko/i.test(nl) ? "ko" : /^zh/i.test(nl) ? "zh" : "en"; }
   window.IQB_LANG = lang;
 
   function tr(raw) {
@@ -210,13 +213,19 @@
     var m = raw.match(/^(\s*)([\s\S]*?)(\s*)$/);
     var core = m[2].replace(/\s+/g, " ");
     if (!core) return null;
-    var v = D[core];
+    var v;
+    var Z = window.__iqbZh;
+    if (lang === "zh" && Z) {
+      v = Z.D[core];
+      if (v === undefined) for (var j = 0; j < Z.P.length; j++) if (Z.P[j][0].test(core)) { v = core.replace(Z.P[j][0], Z.P[j][1]); break; }
+    }
+    if (v === undefined) v = D[core];
     if (v === undefined) {
       for (var i = 0; i < P.length; i++) if (P[i][0].test(core)) { v = core.replace(P[i][0], P[i][1]); break; }
     }
     if (v === undefined && core.indexOf("\u20A9") >= 0) v = core;
     if (v === undefined) return null;
-    v = usd(v);
+    v = lang === "zh" ? cny(v) : usd(v);
     return (/^[\s.,;:!?)\]]/.test(v) ? "" : m[1]) + v + (/\s$/.test(v) ? "" : m[3]);
   }
   window.__iqbTr = tr; window.__iqbDict = D;
@@ -226,11 +235,12 @@
 
   function applyNode(n) {
     var rec = NODE.get(n), cur = n.nodeValue;
-    if (lang === "en") {
-      if (rec && cur === rec.t) return;
-      var t = tr(cur);
-      if (t != null) { NODE.set(n, { o: cur, t: t }); n.nodeValue = t; }
-      else if (rec) NODE.delete(n);
+    if (lang !== "ko") {
+      if (rec && cur === rec.t && rec.l === lang) return;
+      var src = (rec && cur === rec.t) ? rec.o : cur;
+      var t = tr(src);
+      if (t != null) { NODE.set(n, { o: src, t: t, l: lang }); n.nodeValue = t; }
+      else if (rec) { if (cur === rec.t) n.nodeValue = rec.o; NODE.delete(n); }
     } else if (rec) {
       if (cur === rec.t) n.nodeValue = rec.o;
       NODE.delete(n);
@@ -241,10 +251,12 @@
       var a = ATTRS[i];
       if (!el.hasAttribute || !el.hasAttribute(a)) continue;
       var rec = ATTR.get(el) || {}, cur = el.getAttribute(a), r = rec[a];
-      if (lang === "en") {
-        if (r && cur === r.t) continue;
-        var t = tr(cur);
-        if (t != null) { rec[a] = { o: cur, t: t }; ATTR.set(el, rec); el.setAttribute(a, t); }
+      if (lang !== "ko") {
+        if (r && cur === r.t && r.l === lang) continue;
+        var src = (r && cur === r.t) ? r.o : cur;
+        var t = tr(src);
+        if (t != null) { rec[a] = { o: src, t: t, l: lang }; ATTR.set(el, rec); el.setAttribute(a, t); }
+        else if (r) { if (cur === r.t) el.setAttribute(a, r.o); delete rec[a]; }
       } else if (r) { if (cur === r.t) el.setAttribute(a, r.o); delete rec[a]; }
     }
   }
@@ -277,11 +289,11 @@
 
   /* alert / confirm */
   var _alert = window.alert, _confirm = window.confirm;
-  window.alert = function (m) { var t = lang === "en" ? tr(String(m)) : null; return _alert.call(window, t != null ? t : m); };
-  window.confirm = function (m) { var t = lang === "en" ? tr(String(m)) : null; return _confirm.call(window, t != null ? t : m); };
+  window.alert = function (m) { var t = lang !== "ko" ? tr(String(m)) : null; return _alert.call(window, t != null ? t : m); };
+  window.confirm = function (m) { var t = lang !== "ko" ? tr(String(m)) : null; return _confirm.call(window, t != null ? t : m); };
 
   function setLang(l) {
-    if (l !== "ko" && l !== "en") return;
+    if (l !== "ko" && l !== "en" && l !== "zh") return;
     lang = l; window.IQB_LANG = l;
     try { localStorage.setItem("iqb_lang", l); } catch (e) {}
     document.documentElement.lang = l;
@@ -295,13 +307,17 @@
   var btn;
   function paintBtn() {
     if (!btn) return;
-    btn.innerHTML = '<span style="opacity:' + (lang === "ko" ? 1 : .45) + '">KO</span><span style="opacity:.35"> | </span><span style="opacity:' + (lang === "en" ? 1 : .45) + '">EN</span>';
+    var L3 = [["ko", "KO"], ["en", "EN"], ["zh", "CN"]], h = "";
+    for (var i = 0; i < L3.length; i++) {
+      h += (i ? '<span style="opacity:.35"> | </span>' : "") + '<span data-l="' + L3[i][0] + '" style="opacity:' + (lang === L3[i][0] ? 1 : .45) + ';padding:2px 1px">' + L3[i][1] + "</span>";
+    }
+    btn.innerHTML = h;
   }
   function mountBtn() {
     btn = document.createElement("button");
     btn.setAttribute("aria-label", "Language");
     btn.style.cssText = "position:fixed;top:8px;right:8px;z-index:99999;background:rgba(10,14,24,.78);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:5px 10px;font:800 11px/1 system-ui,sans-serif;letter-spacing:.5px;cursor:pointer;backdrop-filter:blur(6px)";
-    btn.onclick = function () { setLang(lang === "ko" ? "en" : "ko"); };
+    btn.onclick = function (ev) { var tg = ev.target, l = tg && tg.getAttribute && tg.getAttribute("data-l"); setLang(l || (lang === "ko" ? "en" : lang === "en" ? "zh" : "ko")); };
     document.body.appendChild(btn);
     paintBtn();
   }
