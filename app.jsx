@@ -242,9 +242,49 @@ function isInAppWebView() {
     return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) || /; wv\)/.test(navigator.userAgent);
   } catch (e) { return false; }
 }
+function iqbT3(ko, en, zh) { const l = window.IQB_LANG || "ko"; return l === "en" ? en : l === "zh" ? zh : ko; }
+// 앱(WebView)에서는 구글이 로그인 팝업을 막으므로: 시스템 브라우저에서 구글 로그인 → oauth-return.html 에서 승인 → auth-relay 로 전달 → 앱이 폴링으로 수신
+function loginViaBrowserRelay() {
+  return new Promise((resolve, reject) => {
+    const arr = new Uint8Array(16); crypto.getRandomValues(arr);
+    const code = Array.from(arr, (b) => b.toString(16).padStart(2, "0")).join("");
+    let num = String(parseInt(code.slice(0, 8), 16) % 10000); while (num.length < 4) num = "0" + num;
+    const url = "https://accounts.google.com/o/oauth2/v2/auth?client_id=" + encodeURIComponent(GOOGLE_CLIENT_ID)
+      + "&redirect_uri=" + encodeURIComponent("https://afprof.github.io/iq-battle-web-test/oauth-return.html")
+      + "&response_type=token&scope=" + encodeURIComponent("openid email profile") + "&state=" + code + "&prompt=select_account";
+    const started = Date.now(); let timer = null; let done = false;
+    const finish = (fn, v) => {
+      if (done) return; done = true; clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVis); window.__iqbRelayCancel = null; fn(v);
+    };
+    const onVis = () => { if (!document.hidden) { clearTimeout(timer); tick(); } };
+    const tick = async () => {
+      if (done) return;
+      if (Date.now() - started > 10 * 60 * 1000) { finish(reject, new Error(iqbT3("시간이 초과되었어요. 다시 시도해 주세요.", "Timed out. Please try again.", "已超时,请重试。"))); return; }
+      try {
+        const res = await fetch(SUPABASE_FUNCTIONS_URL + "/auth-relay", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY },
+          body: JSON.stringify({ action: "poll", code }),
+        });
+        const j = await res.json();
+        if (j && j.token && j.profile) {
+          localStorage.setItem(SESSION_KEY, JSON.stringify({ token: j.token, profileId: j.profile.id }));
+          finish(resolve, j.profile); return;
+        }
+      } catch (e) { /* 다음 주기에 재시도 */ }
+      if (!done) timer = setTimeout(tick, 2000);
+    };
+    document.addEventListener("visibilitychange", onVis);
+    window.__iqbRelayCancel = () => finish(reject, new Error("cancelled"));
+    if (typeof window.__iqbRelayCb === "function") window.__iqbRelayCb({ code, num, url });
+    try { window.open(url, "_blank"); } catch (e) {}
+    timer = setTimeout(tick, 2000);
+  });
+}
 function loginWithGoogle() {
   return new Promise((resolve, reject) => {
-    if (isInAppWebView()) { reject(new Error("앱 안에서는 구글 로그인이 아직 지원되지 않아요. 카카오로 로그인하거나 웹 브라우저에서 접속해 주세요.")); return; }
+    if (isInAppWebView()) { loginViaBrowserRelay().then(resolve, reject); return; }
     if (!(window.google && window.google.accounts && window.google.accounts.oauth2)) { reject(new Error("구글 로그인을 준비 중이에요. 잠시 후 다시 눌러주세요.")); return; }
     const client = window.google.accounts.oauth2.initTokenClient({
       client_id: GOOGLE_CLIENT_ID,
@@ -255,7 +295,7 @@ function loginWithGoogle() {
           const res = await fetch(SUPABASE_FUNCTIONS_URL + "/google-auth", {
             method: "POST",
             headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY },
-            body: JSON.stringify({ googleAccessToken: resp.access_token }),
+            body: JSON.stringify({ googleAccessToken: resp.access_token, country: await Promise.race([detectCountry(), new Promise((r) => setTimeout(() => r(null), 2500))]) }),
           });
           const { token, profile, error } = await res.json();
           if (error) throw new Error(error);
@@ -618,6 +658,7 @@ function App() {
   const [booted, setBooted] = useState(false);
   const [loginError, setLoginError] = useState(null);
   const [loggingIn, setLoggingIn] = useState(false);
+  const [relayInfo, setRelayInfo] = useState(null); // 앱 내 구글 로그인(브라우저 릴레이) 진행 정보
   const [guestMatchDone, setGuestMatchDone] = useState(false); // 로그인 없이 1판 체험 완료 여부
   const unlimited = unlimitedUntil > now;
 
@@ -808,7 +849,7 @@ function App() {
     }
   }
   async function handleGoogleLogin() {
-    setLoginError(null); setLoggingIn(true);
+    setLoginError(null); setLoggingIn(true); window.__iqbRelayCb = setRelayInfo;
     try {
       const profile = await loginWithGoogle();
       const full = await loadProfile(profile.id);
@@ -817,8 +858,9 @@ function App() {
       track("signup", { nick: profile.nickname, provider: "google" });
       setScreen("home");
     } catch (e) {
-      setLoginError((e && e.message) || "구글 로그인에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      setLoginError(e && e.message === "cancelled" ? null : ((e && e.message) || "구글 로그인에 실패했습니다. 잠시 후 다시 시도해주세요."));
     } finally {
+      setRelayInfo(null); window.__iqbRelayCb = null;
       setLoggingIn(false);
     }
   }
@@ -1270,6 +1312,17 @@ function App() {
                 {loggingIn ? "로그인 중…" : "Google로 계속하기"}
               </button>
               {loginError && <div style={{ color: C.foe, fontSize: 12.5, marginTop: 12, lineHeight: 1.6 }}>{loginError}</div>}
+              {relayInfo && (
+                <div style={{ marginTop: 14, padding: 14, borderRadius: 12, background: "#ffffff0d", border: "1px solid " + C.line, textAlign: "center" }}>
+                  <div style={{ fontSize: 13, color: C.sub, lineHeight: 1.6 }}>{iqbT3("브라우저에서 구글 로그인을 마치고, 아래 번호가 같은지 확인한 뒤 '승인'을 눌러 주세요. 완료되면 이 화면으로 돌아오면 자동 로그인돼요.", "Finish Google sign-in in your browser, check that the number below matches, then tap Approve. Come back here and you will be signed in automatically.", "请在浏览器中完成 Google 登录,确认下面的号码一致后点击“批准”。完成后返回此处即可自动登录。")}</div>
+                  <div style={{ fontSize: 38, fontWeight: 900, letterSpacing: 6, color: C.me, margin: "8px 0" }}>{relayInfo.num}</div>
+                  <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+                    <button onClick={() => { try { window.open(relayInfo.url, "_blank"); } catch (e) {} }} style={{ background: "#ffffff14", color: C.text, border: "1px solid " + C.line, borderRadius: 10, padding: "9px 12px", fontFamily: FONT, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{iqbT3("브라우저 다시 열기", "Reopen browser", "重新打开浏览器")}</button>
+                    <button onClick={() => { try { navigator.clipboard.writeText(relayInfo.url); } catch (e) {} }} style={{ background: "#ffffff14", color: C.text, border: "1px solid " + C.line, borderRadius: 10, padding: "9px 12px", fontFamily: FONT, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{iqbT3("링크 복사", "Copy link", "复制链接")}</button>
+                    <button onClick={() => { if (window.__iqbRelayCancel) window.__iqbRelayCancel(); }} style={{ background: "transparent", color: C.muted, border: "1px solid " + C.line, borderRadius: 10, padding: "9px 12px", fontFamily: FONT, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{iqbT3("취소", "Cancel", "取消")}</button>
+                  </div>
+                </div>
+              )}
             </Card>
             <Btn kind="ghost" onClick={() => setScreen("home")} style={{ width: "100%", marginTop: 12 }}>홈으로 돌아가기</Btn>
             <p style={{ color: C.muted, fontSize: 11, lineHeight: 1.6, marginTop: 12, textAlign: "center" }}>로그인하면 개인정보처리방침에 동의한 것으로 봅니다.</p>
