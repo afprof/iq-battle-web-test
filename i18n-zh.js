@@ -1,6 +1,7 @@
 /* IQ BATTLE — 简体中文 (zh-CN) dictionary. Keys are the original Korean strings used by i18n.js. */
 (function () {
   var D = {
+    "로그인": "登录",
     /* tags */
     "수열": "数列", "연산": "运算", "논리": "逻辑", "언어": "语言", "추론": "推理", "공간": "空间", "기억": "记忆", "문자": "字母",
     /* tiers / items */
