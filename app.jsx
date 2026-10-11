@@ -341,10 +341,28 @@ async function saveMatchLog(profileId, record) {
     });
   } catch { /* 공유 저장 실패는 게임 진행에 영향 없이 무시 */ }
 }
+/* ── 접속 국가 감지 (랭킹 닉네임 앞 국기용) ──
+   IP 주소는 저장하지 않고, 조회된 국가 코드(ISO 2글자, 예: KR)만 profiles.country 에 저장합니다.
+   조회가 모두 실패하면 브라우저 언어의 지역 코드(ko-KR → KR)로 대체합니다. */
+let _countryP = null;
+function detectCountry() {
+  if (_countryP) return _countryP;
+  const ok = (c) => (typeof c === "string" && /^[A-Za-z]{2}$/.test(c.trim()) ? c.trim().toUpperCase() : null);
+  _countryP = (async () => {
+    try { const r = await fetch("https://api.country.is/"); const j = await r.json(); const c = ok(j?.country); if (c) return c; } catch { /* 다음 방법 */ }
+    try { const r = await fetch("https://ipapi.co/country/"); const c = ok(await r.text()); if (c) return c; } catch { /* 다음 방법 */ }
+    const m = (navigator.language || "").match(/-([A-Za-z]{2})$/);
+    return m ? m[1].toUpperCase() : null;
+  })();
+  return _countryP;
+}
+const Flag = ({ cc }) => (/^[A-Z]{2}$/.test(cc || "")
+  ? <img src={'https://flagcdn.com/24x18/' + cc.toLowerCase() + '.png'} alt={cc} title={cc} width={20} height={15} style={{ marginRight: 8, borderRadius: 2, verticalAlign: "-2px", boxShadow: "0 0 0 1px rgba(255,255,255,.18)" }} />
+  : null);
 async function loadLeaderboard() {
   try {
     const rows = await sbFetch(`rpc/get_leaderboard`, { method: "POST", body: {} });
-    const list = (rows || []).map((r) => ({ nick: r.nickname, rating: r.rating, iq: r.iq, ts: r.updated_at }));
+    const list = (rows || []).map((r) => ({ nick: r.nickname, rating: r.rating, iq: r.iq, ts: r.updated_at, country: r.country }));
     LIVE_POOL = list;
     return list;
   } catch { return []; }
@@ -671,6 +689,23 @@ function App() {
       setBooted(true);
     })();
   }, []);
+
+  // 접속 국가 감지 → 내 랭킹 줄 국기 + (로그인 시) 프로필에 국가 코드 저장. updated_at 은 건드리지 않음(하트 회복 계산 보호)
+  const [myCountry, setMyCountry] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    detectCountry().then(async (cc) => {
+      if (!alive || !cc) return;
+      setMyCountry(cc);
+      if (account?.id) {
+        try {
+          const cur = await sbFetch(`profiles?id=eq.${account.id}&select=country`);
+          if (cur?.[0] && cur[0].country !== cc) await sbFetch(`profiles?id=eq.${account.id}`, { method: "PATCH", body: { country: cc } });
+        } catch { /* 저장 실패는 무시 */ }
+      }
+    });
+    return () => { alive = false; };
+  }, [account?.id]);
 
   function applyProfileToState(p) {
     setRating(p.rating ?? 0); setLevel(p.level ?? 1); setXp(p.xp ?? 0);
@@ -1373,10 +1408,10 @@ function App() {
               <div style={{ color: C.muted, fontSize: 13, textAlign: "center", padding: "28px 0" }}>아직 집계된 참가자가 없어요. 대결을 시작해 첫 기록을 남겨보세요.</div>
             )}
             {liveBoard.map((p, i) => (
-              <Row key={p.nick + p.ts} rank={i + 1} name={p.nick} right={`${p.rating} · IQ ${p.iq}`} medal={i} me={!!account && p.nick === account.nick} />
+              <Row key={p.nick + p.ts} rank={i + 1} name={p.nick} right={`${p.rating} · IQ ${p.iq}`} medal={i} me={!!account && p.nick === account.nick} country={p.country} />
             ))}
             <div style={{ height: 1, background: C.line, margin: "12px 0" }} />
-            <Row rank={myRank} name={displayNick} right={`${rating} · ${tier.name}`} medal={99} me />
+            <Row rank={myRank} name={displayNick} right={`${rating} · ${tier.name}`} medal={99} me country={myCountry} />
             <p style={{ color: C.muted, fontSize: 12, marginTop: 14, textAlign: "center" }}>대결에서 이겨 레이팅을 올리면 순위가 상승합니다.</p>
           </div>
         )}
@@ -1618,12 +1653,12 @@ function Score({ color, label, score, align, badgeEmoji }) {
 }
 const Tag = ({ color, txt, side }) => <span style={{ position: "absolute", top: -9, [side]: 8, background: color, color: "#08121a", fontSize: 10.5, fontWeight: 900, padding: "2px 7px", borderRadius: 7 }}>{txt}</span>;
 const Pill = ({ children, c }) => <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "rgba(0,0,0,0.28)", border: `1px solid ${C.line}`, color: c, fontWeight: 800, fontSize: 14, padding: "8px 12px", borderRadius: 11 }}>{children}</span>;
-function Row({ rank, name, right, medal, me }) {
+function Row({ rank, name, right, medal, me, country }) {
   const medals = ["🥇", "🥈", "🥉"];
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 12, background: me ? `linear-gradient(135deg,${C.violetDeep}33,${C.me}22)` : C.card, border: `1px solid ${me ? C.me : C.line}`, borderRadius: 14, padding: "12px 16px", marginBottom: 8, boxShadow: C.shadow }}>
       <div style={{ width: 30, textAlign: "center", fontWeight: 900, color: me ? C.me : C.muted }}>{medal < 3 ? medals[medal] : rank}</div>
-      <div style={{ flex: 1, fontWeight: 800, color: me ? C.me : C.text }}>{name}</div>
+      <div style={{ flex: 1, fontWeight: 800, color: me ? C.me : C.text }}><Flag cc={country} />{name}</div>
       <div style={{ color: C.muted, fontSize: 13, fontWeight: 700 }}>{right}</div>
     </div>
   );
