@@ -1356,7 +1356,7 @@ function App() {
         {screen === "leaderboard" && (
           <div style={{ animation: "rise .4s ease" }}>
             <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 4 }}>전국 랭킹</div>
-            <div style={{ color: C.sub, fontSize: 13, marginBottom: 16 }}>이번 시즌 · 실제 참가자 {liveBoard.length >= 100 ? "상위 100명" : `${liveBoard.length.toLocaleString()}명`}</div>
+            <div style={{ color: C.sub, fontSize: 13, marginBottom: 16 }}>실제 참가자 {liveBoard.length >= 100 ? "상위 100명" : `${liveBoard.length.toLocaleString()}명`} · 누적 레이팅 기준</div>
             {liveBoard.length === 0 && (
               <div style={{ color: C.muted, fontSize: 13, textAlign: "center", padding: "28px 0" }}>아직 집계된 참가자가 없어요. 대결을 시작해 첫 기록을 남겨보세요.</div>
             )}
