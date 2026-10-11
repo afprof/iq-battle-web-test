@@ -1159,7 +1159,7 @@ function App() {
                       <button onClick={() => { if (window.confirm("진행 기록을 초기화할까요? 되돌릴 수 없어요.")) resetAll(); }} style={{ background: "none", border: `1px solid ${C.line}`, color: C.muted, fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 8, cursor: "pointer", fontFamily: FONT }}>초기화</button>
                     </>
                   ) : (
-                    <button onClick={handleKakaoLogin} disabled={loggingIn} style={{ background: "#FEE500", border: "none", color: "#191600", fontSize: 11, fontWeight: 800, padding: "3px 9px", borderRadius: 8, cursor: loggingIn ? "not-allowed" : "pointer", fontFamily: FONT }}>{loggingIn ? "로그인 중…" : "카카오 로그인"}</button>
+                    <button onClick={() => { setLoginError(null); setScreen("needlogin"); }} style={{ background: "linear-gradient(135deg,#7c5cff,#2fd3c4)", border: "none", color: "#fff", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 8, cursor: "pointer", fontFamily: FONT }}>로그인</button>
                   )}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 3 }}><span style={{ fontWeight: 800, fontSize: 13, color: C.sub }}>Lv.{level}</span><span style={{ color: tier.color, fontWeight: 800, fontSize: 13 }}>{tier.name} · {rating}</span><button onClick={() => setShowInfo(true)} title="등급·레벨 설명" style={{ display: "grid", placeItems: "center", background: "none", border: "none", cursor: "pointer", padding: 0, color: C.muted }}><Ico name="info" c={C.muted} s={16} /></button></div>
