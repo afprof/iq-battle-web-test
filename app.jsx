@@ -845,7 +845,7 @@ function App() {
   const canPlay = () => unlimited || hearts > 0;
   function toPaywall(depleted) { if (depleted) track("hearts_depleted"); track("paywall_view"); setScreen("outofhearts"); }
   function goStake() {
-    if (!account && guestMatchDone) { track("guest_login_gate"); setScreen("needlogin"); return; }
+    if (!account) { track("guest_login_gate"); setScreen("needlogin"); return; }
     if (!canPlay()) toPaywall(true); else { track("stake_view"); setScreen("stake"); }
   }
 
@@ -1098,33 +1098,25 @@ function App() {
 
   if (!booted) return <div style={{ minHeight: "100vh", background: C.bg0 }} />;
 
-  // ── 로그인 필수: 로그인하지 않으면 게임/홈 화면에 들어갈 수 없음 ──
-  if (!account) return (
-    <div style={{ minHeight: "100vh", fontFamily: FONT, color: C.text, background: C.bg0, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, boxSizing: "border-box" }}>
-      <div style={{ width: "100%", maxWidth: 420, textAlign: "center", animation: "rise .4s ease" }}>
-        <div style={{ fontSize: 44, marginBottom: 4 }}>🧠</div>
-        <div style={{ fontSize: 30, fontWeight: 900, letterSpacing: 1 }}>IQ BATTLE</div>
-        <p style={{ color: C.sub, fontSize: 14, lineHeight: 1.7, margin: "8px 0 22px" }}>로그인하고 실시간 IQ 대결을 시작하세요.</p>
-        <Card glow style={{ padding: "24px 20px" }}>
-          <button onClick={handleKakaoLogin} disabled={loggingIn} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "#FEE500", color: "#191600", border: "none", borderRadius: 12, padding: "15px 20px", fontFamily: FONT, fontSize: 16, fontWeight: 800, cursor: "pointer", opacity: loggingIn ? 0.6 : 1 }}>
-            <svg width="20" height="20" viewBox="0 0 24 24"><path fill="#191600" d="M12 3C6.48 3 2 6.48 2 10.8c0 2.76 1.83 5.19 4.6 6.58l-.94 3.44a.5.5 0 00.76.55l4.1-2.72c.48.05.96.08 1.48.08 5.52 0 10-3.48 10-7.93S17.52 3 12 3z" /></svg>
-            {loggingIn ? "로그인 중…" : "카카오로 계속하기"}
-          </button>
-          <button onClick={handleGoogleLogin} disabled={loggingIn} style={{ width: "100%", marginTop: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "#ffffff", color: "#3c4043", border: "1px solid #dadce0", borderRadius: 12, padding: "15px 20px", fontFamily: FONT, fontSize: 16, fontWeight: 800, cursor: "pointer", opacity: loggingIn ? 0.6 : 1 }}>
-            <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" /><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" /><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" /><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" /></svg>
-            {loggingIn ? "로그인 중…" : "Google로 계속하기"}
-          </button>
-          {loginError && <div style={{ color: C.foe, fontSize: 12.5, marginTop: 14, lineHeight: 1.6 }}>{loginError}</div>}
-        </Card>
-        <p style={{ color: C.muted, fontSize: 11, lineHeight: 1.7, marginTop: 16 }}>
-          로그인하면 <a href="privacy.html" target="_blank" rel="noopener" style={{ color: C.sub }}>개인정보처리방침</a>에 동의한 것으로 봅니다.
-        </p>
-      </div>
-    </div>
-  );
+  // 로그인하지 않은 상태에서 첫 화면은 그대로 보여주되, 무언가(대결 찾기 등)를 누르면 로그인 화면으로 보냄
+  function guestGate(e) {
+    if (account || screen === "needlogin") return;
+    let el = e.target; let clickable = false;
+    while (el && el !== e.currentTarget) {
+      const tag = el.tagName;
+      if (tag === "BUTTON" || tag === "A" || tag === "INPUT" || tag === "SELECT" || (el.getAttribute && el.getAttribute("role") === "button") || (window.getComputedStyle && window.getComputedStyle(el).cursor === "pointer")) { clickable = true; break; }
+      el = el.parentElement;
+    }
+    if (!clickable) return;
+    e.stopPropagation(); e.preventDefault();
+    track("guest_login_gate");
+    setLoginError(null);
+    setScreen("needlogin");
+    try { window.scrollTo(0, 0); } catch (err) {}
+  }
 
   return (
-    <div style={{ minHeight: "100vh", fontFamily: FONT, color: C.text, position: "relative", background: `radial-gradient(1000px 520px at 15% -5%, ${C.bg2}, transparent), radial-gradient(900px 500px at 90% 8%, #1a2f5a55, transparent), linear-gradient(${C.bg1}, ${C.bg0})`, display: "flex", justifyContent: "center", padding: "20px 14px 96px" }}>
+    <div onClickCapture={guestGate} style={{ minHeight: "100vh", fontFamily: FONT, color: C.text, position: "relative", background: `radial-gradient(1000px 520px at 15% -5%, ${C.bg2}, transparent), radial-gradient(900px 500px at 90% 8%, #1a2f5a55, transparent), linear-gradient(${C.bg1}, ${C.bg0})`, display: "flex", justifyContent: "center", padding: "20px 14px 96px" }}>
       <style>{`
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
         *{box-sizing:border-box} ::selection{background:${C.violetDeep}66}
@@ -1264,19 +1256,23 @@ function App() {
         {screen === "needlogin" && (
           <div style={{ animation: "rise .4s ease" }}>
             <Card glow style={{ padding: "28px 22px", textAlign: "center" }}>
-              <div style={{ fontSize: 34, marginBottom: 6 }}>🎉</div>
-              <div style={{ fontSize: 20, fontWeight: 900 }}>한 판 플레이해보셨네요!</div>
+              <div style={{ fontSize: 34, marginBottom: 6 }}>🧠</div>
+              <div style={{ fontSize: 20, fontWeight: 900 }}>로그인이 필요해요</div>
               <p style={{ color: C.sub, fontSize: 14, lineHeight: 1.7, margin: "10px 0 20px" }}>
-                계속 대결하고 레이팅·리포트·랭킹을<br />저장하려면 카카오 로그인이 필요해요.
+                대결을 시작하고 레이팅·리포트·랭킹을<br />저장하려면 로그인해 주세요.
               </p>
               <button onClick={handleKakaoLogin} disabled={loggingIn} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "#FEE500", color: "#191600", border: "none", borderRadius: 12, padding: "15px 20px", fontFamily: FONT, fontSize: 16, fontWeight: 800, cursor: loggingIn ? "not-allowed" : "pointer", opacity: loggingIn ? 0.6 : 1 }}>
                 <svg width="20" height="20" viewBox="0 0 24 24"><path fill="#191600" d="M12 3C6.48 3 2 6.48 2 10.8c0 2.76 1.83 5.19 4.6 6.58l-.94 3.44a.5.5 0 00.76.55l4.1-2.72c.48.05.96.08 1.48.08 5.52 0 10-3.48 10-7.93S17.52 3 12 3z" /></svg>
                 {loggingIn ? "로그인 중…" : "카카오로 계속하기"}
               </button>
+              <button onClick={handleGoogleLogin} disabled={loggingIn} style={{ width: "100%", marginTop: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "#ffffff", color: "#3c4043", border: "1px solid #dadce0", borderRadius: 12, padding: "15px 20px", fontFamily: FONT, fontSize: 16, fontWeight: 800, cursor: loggingIn ? "not-allowed" : "pointer", opacity: loggingIn ? 0.6 : 1 }}>
+                <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" /><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" /><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" /><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" /></svg>
+                {loggingIn ? "로그인 중…" : "Google로 계속하기"}
+              </button>
               {loginError && <div style={{ color: C.foe, fontSize: 12.5, marginTop: 12, lineHeight: 1.6 }}>{loginError}</div>}
             </Card>
-            <Btn kind="ghost" onClick={() => setScreen("home")} style={{ width: "100%", marginTop: 12 }}>나중에 할게요</Btn>
-            <p style={{ color: C.muted, fontSize: 11, lineHeight: 1.6, marginTop: 12, textAlign: "center" }}>홈·랭킹·스토어 구경은 로그인 없이도 계속 가능해요.</p>
+            <Btn kind="ghost" onClick={() => setScreen("home")} style={{ width: "100%", marginTop: 12 }}>홈으로 돌아가기</Btn>
+            <p style={{ color: C.muted, fontSize: 11, lineHeight: 1.6, marginTop: 12, textAlign: "center" }}>로그인하면 개인정보처리방침에 동의한 것으로 봅니다.</p>
           </div>
         )}
 
