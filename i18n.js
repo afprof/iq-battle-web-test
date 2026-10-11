@@ -153,6 +153,16 @@
     "정십이면체의 면은 몇 개?": "How many faces does a regular dodecahedron have?", "다음 규칙에서 빠진 것은? CE, FH, IK, ?": "What is missing in this pattern? CE, FH, IK, ?"
   };
   Object.assign(D, {
+    "로그인하고 실시간 IQ 대결을 시작하세요.": "Sign in to start real-time IQ battles.",
+    "Google로 계속하기": "Continue with Google",
+    "로그인하면": "By signing in, you accept the",
+    "개인정보처리방침": "Privacy Policy",
+    "에 동의한 것으로 봅니다.": ".",
+    "앱 안에서는 구글 로그인이 아직 지원되지 않아요. 카카오로 로그인하거나 웹 브라우저에서 접속해 주세요.": "Google sign-in is not supported inside the app yet. Sign in with Kakao, or open the web version in a browser.",
+    "구글 로그인을 준비 중이에요. 잠시 후 다시 눌러주세요.": "Google sign-in is getting ready. Please try again in a moment.",
+    "구글 로그인이 취소되었어요.": "Google sign-in was cancelled.",
+    "구글 로그인에 실패했습니다. 잠시 후 다시 시도해주세요.": "Google sign-in failed. Please try again shortly.",
+    "구글 토큰이 유효하지 않습니다": "The Google token is invalid.",
     "회 남음": " left", "Lv는 대결할수록 오르는": "Lv rises as you battle —", "활동 지표": "activity", "점은 승패로 오르내리는": " pts moves with wins & losses —",
     "※ 충전한 포인트는 대결 베팅과": "※ Top-up points are used for betting in battles and", "하트 구매(": "buying hearts (", "에 쓰는 게임 내 재화입니다.": " — they're in-game currency.",
     "실제 참가자": "Players:", "매칭돼요.": ".", "전체": "Rank",
