@@ -355,7 +355,8 @@ async function loadLeaderboard() {
    FALLBACK_POOL(POOL)로 자동 대체되어 게임은 계속 정상 작동합니다. */
 async function loadQuestionBank() {
   try {
-    const rows = await sbFetch(`questions?select=id,tag,q,options,answer,b,a&active=eq.true&limit=2000`);
+    const lang = window.IQB_LANG === "en" ? "en" : "ko"; // i18n.js 가 정한 언어의 문항만 사용
+    const rows = await sbFetch(`questions?select=id,tag,q,options,answer,b,a&active=eq.true&lang=eq.${lang}&limit=2000`);
     if (!rows || !rows.length) return null;
     // 같은 유형·같은 문장의 중복 문항은 한 번만 사용 (반복 출제 방지)
     const seenQ = new Set();
@@ -370,7 +371,7 @@ async function requestMoreQuestions(tag, targetB, count = 6) {
     await fetch(`${SUPABASE_URL}/functions/v1/generate-questions`, {
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
-      body: JSON.stringify({ tag, targetB, count }),
+      body: JSON.stringify({ tag, targetB, count, lang: window.IQB_LANG === "en" ? "en" : "ko" }),
     });
   } catch { /* 조용히 무시 */ }
 }
@@ -641,8 +642,14 @@ function App() {
   useEffect(() => { initPlayBilling(); }, []);
 
   // 문항 은행: Supabase questions 테이블에서 불러오고, 실패/공백이면 폴백 풀 유지
+  const [, setLangTick] = useState(0);
   useEffect(() => {
-    loadQuestionBank().then((bank) => { if (bank && bank.length) bankRef.current = bank; });
+    const load = () => loadQuestionBank().then((bank) => { if (bank && bank.length) bankRef.current = bank; });
+    load();
+    // 언어 전환(KO/EN) 시 해당 언어의 문항 은행을 다시 불러오고 화면을 다시 그림
+    const onLang = () => { load(); setLangTick((t) => t + 1); };
+    window.addEventListener("iqb-lang", onLang);
+    return () => window.removeEventListener("iqb-lang", onLang);
   }, []);
 
   // recentQuestionIds를 ref에도 동기화 (타이머 체인에서 stale closure 없이 항상 최신값을 읽기 위함)
@@ -995,7 +1002,7 @@ function App() {
   const reportTier1 = !!(owned.report1 || owned.report2); // 결과 확인권 (또는 상위 등급 보유)
   const reportTier2 = !!owned.report2; // 전체 리포트
 
-  const displayNick = account?.nick || "게스트";
+  const displayNick = account?.nick || (window.IQB_LANG === "en" ? "Guest" : "게스트");
 
   if (!booted) return <div style={{ minHeight: "100vh", background: C.bg0 }} />;
 
