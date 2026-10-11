@@ -250,6 +250,10 @@ const PLAY_PRODUCT_IDS = {
   "pass:day": "iqbattle_pass_day",
   "pass:month": "iqbattle_pass_month",
 };
+// ★ 데모 결제 스위치 — true면 실제 결제(Google Play) 없이 "결제하기"를 누르는 즉시 해당 권한이 열립니다.
+//   (이 기기 화면에서만 열리고 서버/DB에는 저장되지 않으며, 다시 로그인하면 초기화됩니다.)
+//   ※ 정식 출시·결제 연동 전에는 반드시 false 로 바꾸세요. true로 배포하면 유료 기능이 무료로 열립니다.
+const DEMO_PAYMENT = true;
 let __billingReady = null; // Promise<boolean> — store.initialize 완료 여부
 function isNativeBilling() {
   return typeof window !== "undefined" && !!window.CdvPurchase;
@@ -909,6 +913,18 @@ function App() {
     // 진행되고, 결제 영수증(purchaseToken)을 서버가 구글에 재검증한 뒤에만
     // 반영됩니다 — 클라이언트가 직접 owned를 켜는 경로는 없습니다.
     if (!account?.id) { setModal(null); setScreen("needlogin"); return; }
+    if (DEMO_PAYMENT) {
+      // 데모: 결제 없이 권한만 이 화면에서 바로 열어서 결과를 보여줍니다.
+      const it = modal.item;
+      if (String(it).startsWith("pass:")) {
+        setUnlimitedUntil(Date.now() + (it === "pass:day" ? 24 : 24 * 30) * 3600 * 1000);
+      } else {
+        setOwned((o) => ({ ...o, [it]: true }));
+      }
+      setModal(null);
+      window.alert("데모 모드: 실제 결제 없이 체험용으로 열렸어요. (청구 없음)");
+      return;
+    }
     if (!isNativeBilling()) {
       window.alert("실제 결제는 안드로이드 앱에서만 가능해요. (지금은 미리보기 환경입니다)");
       setModal(null);
@@ -917,7 +933,10 @@ function App() {
     setBuyBusy(true);
     try {
       const token = getAuthToken() || SUPABASE_ANON_KEY;
-      const p = await purchaseViaPlayBilling(modal.item, token);
+      const p = await Promise.race([
+        purchaseViaPlayBilling(modal.item, token),
+        new Promise((_, rej) => setTimeout(() => rej(new Error("결제 연결 시간이 초과됐어요. Google Play 결제 설정(상품 등록·테스터 계정)을 확인해주세요.")), 25000)),
+      ]);
       setOwned(p.owned || {});
       setUnlimitedUntil(p.unlimited_until ? new Date(p.unlimited_until).getTime() : 0);
       if (p.hearts != null) setHearts(p.hearts);
@@ -1481,7 +1500,7 @@ function App() {
           <div onClick={(e) => e.stopPropagation()}>
             <Card glow style={{ padding: "26px 24px", width: "100%", maxWidth: 340, animation: "pop .25s ease" }}>
               <div style={{ fontWeight: 900, fontSize: 19, marginBottom: 6 }}>결제 확인</div>
-              <div style={{ color: C.sub, fontSize: 14, marginBottom: 18 }}>결제 금액 <b style={{ color: C.text }}>₩{modal.price.toLocaleString()}</b><br /><span style={{ fontSize: 12, color: C.muted }}>(데모 — 실제 청구되지 않습니다)</span></div>
+              <div style={{ color: C.sub, fontSize: 14, marginBottom: 18 }}>결제 금액 <b style={{ color: C.text }}>₩{modal.price.toLocaleString()}</b><br />{DEMO_PAYMENT && <span style={{ fontSize: 12, color: C.muted }}>(데모 — 실제 청구되지 않습니다)</span>}</div>
               <div style={{ display: "flex", gap: 10 }}><Btn kind="ghost" onClick={() => setModal(null)} disabled={buyBusy} style={{ flex: 1 }}>취소</Btn><Btn onClick={confirmBuy} disabled={buyBusy} style={{ flex: 1 }}>{buyBusy ? "처리 중…" : "결제하기"}</Btn></div>
             </Card>
           </div>
