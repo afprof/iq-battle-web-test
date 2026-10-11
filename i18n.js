@@ -1,7 +1,9 @@
 /* IQ BATTLE — runtime i18n layer (ko <-> en). Translates rendered Korean text nodes/attributes. */
 (function () {
   if (window.__iqbI18n) return;
-  var KO_RE = /[가-힣]/;
+  var KO_RE = /[가-힣₩]/;
+  /* 영어 모드: 원화(₩) 금액을 환율 ₩1,000 = $1 로 달러 표시 */
+  function usd(s) { return s.replace(/₩\s?(\d[\d,]*)/g, function (_, n) { return "$" + (parseInt(n.replace(/,/g, ""), 10) / 1000).toFixed(2); }); }
   var D = {
     /* tags */
     "수열": "Sequence", "연산": "Arithmetic", "논리": "Logic", "언어": "Verbal", "추론": "Reasoning", "공간": "Spatial", "기억": "Memory", "문자": "Letters",
@@ -197,7 +199,9 @@
     if (v === undefined) {
       for (var i = 0; i < P.length; i++) if (P[i][0].test(core)) { v = core.replace(P[i][0], P[i][1]); break; }
     }
+    if (v === undefined && core.indexOf("\u20A9") >= 0) v = core;
     if (v === undefined) return null;
+    v = usd(v);
     return (/^[\s.,;:!?)\]]/.test(v) ? "" : m[1]) + v + (/\s$/.test(v) ? "" : m[3]);
   }
   window.__iqbTr = tr; window.__iqbDict = D;
