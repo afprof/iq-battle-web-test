@@ -355,9 +355,12 @@ async function loadLeaderboard() {
    FALLBACK_POOL(POOL)로 자동 대체되어 게임은 계속 정상 작동합니다. */
 async function loadQuestionBank() {
   try {
-    const rows = await sbFetch(`questions?select=id,tag,q,options,answer,b,a&active=eq.true&limit=1000`);
+    const rows = await sbFetch(`questions?select=id,tag,q,options,answer,b,a&active=eq.true&limit=2000`);
     if (!rows || !rows.length) return null;
-    return rows.map((r) => ({ id: r.id, tag: r.tag, q: r.q, options: r.options, answer: r.answer, b: r.b, a: r.a }));
+    // 같은 유형·같은 문장의 중복 문항은 한 번만 사용 (반복 출제 방지)
+    const seenQ = new Set();
+    const uniq = rows.filter((r) => { const k = r.tag + "|" + r.q; if (seenQ.has(k)) return false; seenQ.add(k); return true; });
+    return uniq.map((r) => ({ id: r.id, tag: r.tag, q: r.q, options: r.options, answer: r.answer, b: r.b, a: r.a }));
   } catch { return null; }
 }
 // AI로 새 문항을 생성해 DB에 채워넣기 요청 (실패해도 게임에 영향 없이 조용히 무시 —
@@ -418,7 +421,7 @@ function pickAdaptive(pool, usedIds, theta, tag) {
   if (!cands.length) cands = pool.filter((q) => !usedIds.has(q.id));
   if (!cands.length) return pool[Math.floor(Math.random() * pool.length)];
   const sorted = [...cands].sort((x, y) => Math.abs(x.b - theta) - Math.abs(y.b - theta));
-  const top = sorted.slice(0, Math.min(6, sorted.length));
+  const top = sorted.slice(0, Math.min(12, sorted.length)); // 난이도가 비슷한 후보 12개 중 무작위 (다양성 확대)
   return top[Math.floor(Math.random() * top.length)];
 }
 function shuffle(arr) {
@@ -430,7 +433,7 @@ function shuffle(arr) {
   return a;
 }
 const TAGS = ["수열", "연산", "논리", "언어", "문자", "추론", "공간", "기억"];
-const MIN_PER_TAG = 25; // 유형별 최소 이 개수는 있어야 반복 체감이 안 남
+const MIN_PER_TAG = 60; // 유형별 최소 이 개수는 있어야 반복 체감이 안 남
 let topUpInFlight = false; // 같은 세션에서 요청이 겹치지 않도록 간단한 락
 // 이전 버전은 "현재 theta 근방 난이도 후보가 전체 유형 통틀어 12개 이상이면 충분"으로
 // 판단했는데, 폴백 풀(57문항)만으로도 이 조건을 항상 만족해버려서(유형 구분 없이 셌기
