@@ -1057,7 +1057,7 @@ function App() {
             </Card>
 
             <Card glow style={{ padding: "28px 22px", textAlign: "center", marginTop: 14 }}>
-              <div style={{ fontSize: 29, fontWeight: 900, lineHeight: 1.25, letterSpacing: -0.5 }}>실시간 대결로<br /><span style={{ background: `linear-gradient(135deg,${C.me},${C.violet})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>IQ와 랭킹</span>을 올리세요</div>
+              <div style={{ fontSize: 29, fontWeight: 900, lineHeight: 1.25, letterSpacing: -0.5 }}>세계에서 가장 뛰어난<br /><span style={{ background: `linear-gradient(135deg,${C.me},${C.violet})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>IQ와 랭킹</span>에 도전하세요</div>
               <p style={{ color: C.sub, fontSize: 14, lineHeight: 1.6, margin: "10px 0 18px" }}>문제를 풀 때마다 난이도가 실력에 맞춰 조정되고,<br />IQ 지수와 전국 순위가 실시간으로 갱신됩니다.</p>
               <Btn kind="battle" onClick={goStake} style={{ width: "100%" }}>대결 상대 찾기 →</Btn>
               <div style={{ marginTop: 12, fontSize: 12.5, color: C.muted }}>
