@@ -153,6 +153,11 @@
     "정십이면체의 면은 몇 개?": "How many faces does a regular dodecahedron have?", "다음 규칙에서 빠진 것은? CE, FH, IK, ?": "What is missing in this pattern? CE, FH, IK, ?"
   };
   Object.assign(D, {
+    "로그인이 필요해요": "Sign in required",
+    "대결을 시작하고 레이팅·리포트·랭킹을": "Sign in to start battles and save your",
+    "저장하려면 로그인해 주세요.": "rating, reports and ranking.",
+    "홈으로 돌아가기": "Back to home",
+    "로그인하면 개인정보처리방침에 동의한 것으로 봅니다.": "By signing in, you accept the Privacy Policy.",
     "로그인하고 실시간 IQ 대결을 시작하세요.": "Sign in to start real-time IQ battles.",
     "Google로 계속하기": "Continue with Google",
     "로그인하면": "By signing in, you accept the",
