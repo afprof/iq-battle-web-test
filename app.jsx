@@ -122,7 +122,7 @@ const FOE_NAMES = ["논리왕_민준", "퀀트_소피아", "두뇌풀가동", "I
 const STAKES = [100, 300, 500, 1000];
 const Q_PER_MATCH = 8;
 const Q_TIME = 15;
-const TOTAL_PLAYERS = 1284502;
+let LIVE_POOL = []; // 실제 참가자 랭킹 캐시 (전국 순위 계산용 · 서버 get_leaderboard 결과)
 const AVG_REACTION = 6.8, PRO_REACTION = 4.0; // 비교 기준(초)
 const MAX_HEARTS = 3;        // 무료 연속 3판
 const HEART_REGEN = 30 * 60; // 30분당 1개 회복(초)
@@ -344,7 +344,9 @@ async function saveMatchLog(profileId, record) {
 async function loadLeaderboard() {
   try {
     const rows = await sbFetch(`rpc/get_leaderboard`, { method: "POST", body: {} });
-    return (rows || []).map((r) => ({ nick: r.nickname, rating: r.rating, iq: r.iq, ts: r.updated_at }));
+    const list = (rows || []).map((r) => ({ nick: r.nickname, rating: r.rating, iq: r.iq, ts: r.updated_at }));
+    LIVE_POOL = list;
+    return list;
   } catch { return []; }
 }
 
@@ -452,7 +454,7 @@ function diffLabel(b) {
 const tierOf = (r) => r < 1100 ? { name: "브론즈", color: "#c98d5b" } : r < 1300 ? { name: "실버", color: "#c7ccda" } : r < 1500 ? { name: "골드", color: C.gold } : r < 1700 ? { name: "플래티넘", color: "#5ee0d0" } : { name: "다이아", color: "#8ab6ff" };
 const rand = (a, b) => a + Math.random() * (b - a);
 const cdf = (z) => 1 / (1 + Math.exp(-1.702 * z));
-const pctlOf = (iq) => { const p = cdf((iq - 100) / 15) * 100; return { top: Math.max(0.1, Math.round((100 - p) * 10) / 10), rank: Math.max(1, Math.round((TOTAL_PLAYERS * (100 - p)) / 100)) }; };
+const pctlOf = (iq) => { const p = cdf((iq - 100) / 15) * 100; return { top: Math.max(0.1, Math.round((100 - p) * 10) / 10), rank: 1 + LIVE_POOL.filter((r) => r.iq > iq).length }; };
 
 /* ── 아이콘 ── */
 const I = {
@@ -595,11 +597,6 @@ function App() {
   const tier = tierOf(rating);
   const nextTierGap = rating < 1100 ? 1100 - rating : rating < 1300 ? 1300 - rating : rating < 1500 ? 1500 - rating : rating < 1700 ? 1700 - rating : null;
 
-  const [board] = useState(() => {
-    const names = ["멘사킹", "0.1%두뇌", "논리괴물", "패턴제왕", "수열도사", "IQ168", "추론의神", "브레인캐리"];
-    return names.map((n, i) => ({ name: n, rating: 2380 - i * 55 - Math.round(rand(0, 20)), iq: 158 - i * 3 })).sort((a, b) => b.rating - a.rating);
-  });
-
   // 1초 틱: 하트 회복 + 무제한 만료 계산
   useEffect(() => {
     const t = setInterval(() => {
@@ -693,6 +690,9 @@ function App() {
       hearts, last_iq: iqHistory[iqHistory.length - 1],
     });
   }, [booted, account, rating, level, xp, points, streak, iqHistory, catAgg, equippedSkin, equippedBadge, recentQuestionIds, hearts]);
+
+  // 앱 시작 시 실제 참가자 데이터 미리 불러오기 (결과 화면의 전국 순위 계산용)
+  useEffect(() => { loadLeaderboard(); }, []);
 
   // 랭킹 화면 진입 시 공유 랭킹보드 불러오기
   useEffect(() => {
@@ -966,7 +966,7 @@ function App() {
   }
 
   const showNav = ["home", "leaderboard", "missions", "store"].includes(screen);
-  const myRank = Math.max(9, board.length + Math.round((1600 - Math.min(1600, rating)) * 0.9) + 40);
+  const myRank = 1 + liveBoard.filter((r) => r.rating > rating).length;
 
   // 리포트 파생 데이터
   const react = outcome?.react ?? 5.2;
@@ -1356,23 +1356,15 @@ function App() {
         {screen === "leaderboard" && (
           <div style={{ animation: "rise .4s ease" }}>
             <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 4 }}>전국 랭킹</div>
-            <div style={{ color: C.sub, fontSize: 13, marginBottom: 16 }}>이번 시즌 · 총 {TOTAL_PLAYERS.toLocaleString()}명 참가</div>
-            {board.map((p, i) => <Row key={p.name} rank={i + 1} name={p.name} right={`${p.rating} · IQ ${p.iq}`} medal={i} />)}
+            <div style={{ color: C.sub, fontSize: 13, marginBottom: 16 }}>이번 시즌 · 실제 참가자 {liveBoard.length >= 100 ? "상위 100명" : `${liveBoard.length.toLocaleString()}명`}</div>
+            {liveBoard.length === 0 && (
+              <div style={{ color: C.muted, fontSize: 13, textAlign: "center", padding: "28px 0" }}>아직 집계된 참가자가 없어요. 대결을 시작해 첫 기록을 남겨보세요.</div>
+            )}
+            {liveBoard.map((p, i) => (
+              <Row key={p.nick + p.ts} rank={i + 1} name={p.nick} right={`${p.rating} · IQ ${p.iq}`} medal={i} me={!!account && p.nick === account.nick} />
+            ))}
             <div style={{ height: 1, background: C.line, margin: "12px 0" }} />
             <Row rank={myRank} name={displayNick} right={`${rating} · ${tier.name}`} medal={99} me />
-
-            {liveBoard.length > 0 && (
-              <>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 22, marginBottom: 10 }}>
-                  <Ico name="sparkle" c={C.me} s={14} />
-                  <div style={{ fontWeight: 800, fontSize: 14, color: C.text }}>실제 참가자 랭킹</div>
-                  <span style={{ fontSize: 11, color: C.muted }}>(이 앱을 플레이한 실제 유저 데이터)</span>
-                </div>
-                {liveBoard.slice(0, 15).map((p, i) => (
-                  <Row key={p.nick + p.ts} rank={i + 1} name={p.nick} right={`${p.rating} · IQ ${p.iq}`} medal={i} me={!!account && p.nick === account.nick} />
-                ))}
-              </>
-            )}
             <p style={{ color: C.muted, fontSize: 12, marginTop: 14, textAlign: "center" }}>대결에서 이겨 레이팅을 올리면 순위가 상승합니다.</p>
           </div>
         )}
