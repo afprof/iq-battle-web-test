@@ -226,6 +226,48 @@ function loginWithKakao() {
     });
   });
 }
+const GOOGLE_CLIENT_ID = "957005361354-5gkqv8gc577u9duqeo6ihamk0vq64tln.apps.googleusercontent.com";
+// 구글 로그인 스크립트(GIS)를 미리 불러둠 — 클릭 시 팝업이 차단되지 않도록
+(function preloadGsi() {
+  try {
+    if (typeof document !== "undefined" && !document.getElementById("gsi-client")) {
+      const s = document.createElement("script");
+      s.id = "gsi-client"; s.src = "https://accounts.google.com/gsi/client"; s.async = true;
+      document.head.appendChild(s);
+    }
+  } catch (e) {}
+})();
+function isInAppWebView() {
+  try {
+    return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) || /; wv\)/.test(navigator.userAgent);
+  } catch (e) { return false; }
+}
+function loginWithGoogle() {
+  return new Promise((resolve, reject) => {
+    if (isInAppWebView()) { reject(new Error("앱 안에서는 구글 로그인이 아직 지원되지 않아요. 카카오로 로그인하거나 웹 브라우저에서 접속해 주세요.")); return; }
+    if (!(window.google && window.google.accounts && window.google.accounts.oauth2)) { reject(new Error("구글 로그인을 준비 중이에요. 잠시 후 다시 눌러주세요.")); return; }
+    const client = window.google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: "openid email profile",
+      callback: async (resp) => {
+        if (!resp || resp.error || !resp.access_token) { reject(new Error("구글 로그인이 취소되었어요.")); return; }
+        try {
+          const res = await fetch(SUPABASE_FUNCTIONS_URL + "/google-auth", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY },
+            body: JSON.stringify({ googleAccessToken: resp.access_token }),
+          });
+          const { token, profile, error } = await res.json();
+          if (error) throw new Error(error);
+          localStorage.setItem(SESSION_KEY, JSON.stringify({ token, profileId: profile.id }));
+          resolve(profile);
+        } catch (e) { reject(e); }
+      },
+      error_callback: () => reject(new Error("구글 로그인이 취소되었어요.")),
+    });
+    client.requestAccessToken({ prompt: "select_account" });
+  });
+}
 function logoutKakao() {
   localStorage.removeItem(SESSION_KEY);
   if (typeof window !== "undefined" && window.Kakao?.Auth?.logout) window.Kakao.Auth.logout();
@@ -765,6 +807,21 @@ function App() {
       setLoggingIn(false);
     }
   }
+  async function handleGoogleLogin() {
+    setLoginError(null); setLoggingIn(true);
+    try {
+      const profile = await loginWithGoogle();
+      const full = await loadProfile(profile.id);
+      applyProfileToState(full || profile);
+      setAccount({ id: profile.id, nick: profile.nickname });
+      track("signup", { nick: profile.nickname, provider: "google" });
+      setScreen("home");
+    } catch (e) {
+      setLoginError((e && e.message) || "구글 로그인에 실패했습니다. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setLoggingIn(false);
+    }
+  }
   function logout() { logoutKakao(); setAccount(null); setScreen("home"); }
   async function resetAll() {
     // owned·unlimited_until(결제 관련)은 여기서 손대지 않습니다 — 돈 주고 산
@@ -1040,6 +1097,31 @@ function App() {
   const displayNick = account?.nick || (window.IQB_LANG === "en" ? "Guest" : "게스트");
 
   if (!booted) return <div style={{ minHeight: "100vh", background: C.bg0 }} />;
+
+  // ── 로그인 필수: 로그인하지 않으면 게임/홈 화면에 들어갈 수 없음 ──
+  if (!account) return (
+    <div style={{ minHeight: "100vh", fontFamily: FONT, color: C.text, background: C.bg0, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, boxSizing: "border-box" }}>
+      <div style={{ width: "100%", maxWidth: 420, textAlign: "center", animation: "rise .4s ease" }}>
+        <div style={{ fontSize: 44, marginBottom: 4 }}>🧠</div>
+        <div style={{ fontSize: 30, fontWeight: 900, letterSpacing: 1 }}>IQ BATTLE</div>
+        <p style={{ color: C.sub, fontSize: 14, lineHeight: 1.7, margin: "8px 0 22px" }}>로그인하고 실시간 IQ 대결을 시작하세요.</p>
+        <Card glow style={{ padding: "24px 20px" }}>
+          <button onClick={handleKakaoLogin} disabled={loggingIn} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "#FEE500", color: "#191600", border: "none", borderRadius: 12, padding: "15px 20px", fontFamily: FONT, fontSize: 16, fontWeight: 800, cursor: "pointer", opacity: loggingIn ? 0.6 : 1 }}>
+            <svg width="20" height="20" viewBox="0 0 24 24"><path fill="#191600" d="M12 3C6.48 3 2 6.48 2 10.8c0 2.76 1.83 5.19 4.6 6.58l-.94 3.44a.5.5 0 00.76.55l4.1-2.72c.48.05.96.08 1.48.08 5.52 0 10-3.48 10-7.93S17.52 3 12 3z" /></svg>
+            {loggingIn ? "로그인 중…" : "카카오로 계속하기"}
+          </button>
+          <button onClick={handleGoogleLogin} disabled={loggingIn} style={{ width: "100%", marginTop: 10, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "#ffffff", color: "#3c4043", border: "1px solid #dadce0", borderRadius: 12, padding: "15px 20px", fontFamily: FONT, fontSize: 16, fontWeight: 800, cursor: "pointer", opacity: loggingIn ? 0.6 : 1 }}>
+            <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" /><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" /><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" /><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" /></svg>
+            {loggingIn ? "로그인 중…" : "Google로 계속하기"}
+          </button>
+          {loginError && <div style={{ color: C.foe, fontSize: 12.5, marginTop: 14, lineHeight: 1.6 }}>{loginError}</div>}
+        </Card>
+        <p style={{ color: C.muted, fontSize: 11, lineHeight: 1.7, marginTop: 16 }}>
+          로그인하면 <a href="privacy.html" target="_blank" rel="noopener" style={{ color: C.sub }}>개인정보처리방침</a>에 동의한 것으로 봅니다.
+        </p>
+      </div>
+    </div>
+  );
 
   return (
     <div style={{ minHeight: "100vh", fontFamily: FONT, color: C.text, position: "relative", background: `radial-gradient(1000px 520px at 15% -5%, ${C.bg2}, transparent), radial-gradient(900px 500px at 90% 8%, #1a2f5a55, transparent), linear-gradient(${C.bg1}, ${C.bg0})`, display: "flex", justifyContent: "center", padding: "20px 14px 96px" }}>
