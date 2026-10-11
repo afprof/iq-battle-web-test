@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>IQ BATTLE 로그인 / Login</title>
+<style>
+  body{margin:0;background:#0b1020;color:#e8ecf8;font-family:-apple-system,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic","PingFang SC",sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center}
+  .card{max-width:420px;width:calc(100% - 40px);background:#141b34;border:1px solid #26304f;border-radius:18px;padding:28px 22px;text-align:center}
+  h1{font-size:20px;margin:0 0 10px}
+  p{color:#b7c0df;line-height:1.6;font-size:15px;margin:8px 0}
+  .code{font-size:44px;font-weight:800;letter-spacing:8px;color:#8fb0ff;margin:14px 0}
+  button{width:100%;padding:15px;border:0;border-radius:12px;background:#4c7dff;color:#fff;font-size:16px;font-weight:800;margin-top:12px}
+  button[disabled]{opacity:.5}
+  .ok{color:#6ee7a8}.err{color:#ff8a8a}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1 id="title"></h1>
+  <div id="body"></div>
+</div>
+<script>
+(function () {
+  var FN = "https://fiqtweiklstkpnyetemz.supabase.co/functions/v1";
+  var KEY = "sb_publishable_RbKe9p0xgayUpZjvxhMhGw_RM_7WAvm";
+  var lang = (navigator.language || "ko").toLowerCase();
+  var L = lang.indexOf("zh") === 0 ? "zh" : lang.indexOf("ko") === 0 ? "ko" : "en";
+  var T = {
+    ko: { title: "IQ BATTLE 앱 로그인", confirm: "앱 화면에 표시된 확인 번호와 같은지 확인하세요.", approve: "승인하고 로그인", wait: "로그인 중…", done: "로그인 완료! 이제 IQ BATTLE 앱으로 돌아가세요.", fail: "로그인에 실패했어요. 앱에서 다시 시도해 주세요.", none: "앱의 '구글로 로그인' 버튼으로 시작해 주세요.", cancel: "구글 로그인이 취소되었어요. 앱으로 돌아가 다시 시도해 주세요.", warn: "본인이 앱에서 직접 시작한 로그인이 아니라면 승인하지 마세요." },
+    en: { title: "IQ BATTLE app sign-in", confirm: "Check that this matches the confirmation number shown in the app.", approve: "Approve and sign in", wait: "Signing in…", done: "Signed in! Please go back to the IQ BATTLE app.", fail: "Sign-in failed. Please try again from the app.", none: "Please start from the 'Sign in with Google' button in the app.", cancel: "Google sign-in was cancelled. Go back to the app and try again.", warn: "Do not approve if you did not start this sign-in in the app yourself." },
+    zh: { title: "IQ BATTLE 应用登录", confirm: "请确认与应用屏幕上显示的确认号码一致。", approve: "批准并登录", wait: "登录中…", done: "登录成功!请返回 IQ BATTLE 应用。", fail: "登录失败,请在应用中重试。", none: "请从应用中的“使用 Google 登录”按钮开始。", cancel: "Google 登录已取消,请返回应用重试。", warn: "如果不是您在应用中亲自发起的登录,请不要批准。" }
+  }[L];
+  var $title = document.getElementById("title"), $body = document.getElementById("body");
+  $title.textContent = T.title;
+  function msg(text, cls) { $body.innerHTML = ""; var p = document.createElement("p"); p.textContent = text; if (cls) p.className = cls; $body.appendChild(p); }
+
+  var h = new URLSearchParams((location.hash || "").replace(/^#/, ""));
+  var q = new URLSearchParams(location.search);
+  var access = h.get("access_token"), state = h.get("state") || "";
+  try { history.replaceState(null, "", location.pathname); } catch (e) {}
+  if (h.get("error") || q.get("error")) { msg(T.cancel, "err"); return; }
+  if (!access || !/^[a-f0-9]{32}$/.test(state)) { msg(T.none); return; }
+
+  var num = String(parseInt(state.slice(0, 8), 16) % 10000); while (num.length < 4) num = "0" + num;
+  $body.innerHTML = "";
+  var p1 = document.createElement("p"); p1.textContent = T.confirm; $body.appendChild(p1);
+  var big = document.createElement("div"); big.className = "code"; big.textContent = num; $body.appendChild(big);
+  var p2 = document.createElement("p"); p2.textContent = T.warn; p2.style.fontSize = "13px"; $body.appendChild(p2);
+  var btn = document.createElement("button"); btn.textContent = T.approve; $body.appendChild(btn);
+
+  function post(path, body) {
+    return fetch(FN + "/" + path, { method: "POST", headers: { "Content-Type": "application/json", apikey: KEY, Authorization: "Bearer " + KEY }, body: JSON.stringify(body) }).then(function (r) { return r.json(); });
+  }
+  function detectCountry() {
+    var t = new Promise(function (res) { setTimeout(function () { res(null); }, 2500); });
+    var f = fetch("https://api.country.is/").then(function (r) { return r.json(); }).then(function (j) { return j && j.country ? j.country : null; }).catch(function () { return null; });
+    return Promise.race([f, t]);
+  }
+  btn.onclick = function () {
+    btn.disabled = true; btn.textContent = T.wait;
+    detectCountry().then(function (cc) {
+      return post("google-auth", { googleAccessToken: access, country: cc });
+    }).then(function (r) {
+      if (r.error || !r.token) throw new Error(r.error || "no token");
+      return post("auth-relay", { action: "complete", code: state, token: r.token, profile: r.profile });
+    }).then(function (r) {
+      if (r.error) throw new Error(r.error);
+      msg(T.done, "ok");
+    }).catch(function () { msg(T.fail, "err"); });
+  };
+})();
+</script>
+</body>
+</html>
