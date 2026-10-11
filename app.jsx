@@ -415,7 +415,7 @@ async function loadLeaderboard() {
    FALLBACK_POOL(POOL)로 자동 대체되어 게임은 계속 정상 작동합니다. */
 async function loadQuestionBank() {
   try {
-    const lang = window.IQB_LANG === "en" ? "en" : "ko"; // i18n.js 가 정한 언어의 문항만 사용
+    const lang = (window.IQB_LANG === "en" || window.IQB_LANG === "zh") ? window.IQB_LANG : "ko"; // i18n.js 가 정한 언어의 문항만 사용
     const rows = await sbFetch(`questions?select=id,tag,q,options,answer,b,a&active=eq.true&lang=eq.${lang}&limit=2000`);
     if (!rows || !rows.length) return null;
     // 같은 유형·같은 문장의 중복 문항은 한 번만 사용 (반복 출제 방지)
@@ -431,7 +431,7 @@ async function requestMoreQuestions(tag, targetB, count = 6) {
     await fetch(`${SUPABASE_URL}/functions/v1/generate-questions`, {
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
-      body: JSON.stringify({ tag, targetB, count, lang: window.IQB_LANG === "en" ? "en" : "ko" }),
+      body: JSON.stringify({ tag, targetB, count, lang: (window.IQB_LANG === "en" || window.IQB_LANG === "zh") ? window.IQB_LANG : "ko" }),
     });
   } catch { /* 조용히 무시 */ }
 }
@@ -1094,7 +1094,7 @@ function App() {
   const reportTier1 = !!(owned.report1 || owned.report2); // 결과 확인권 (또는 상위 등급 보유)
   const reportTier2 = !!owned.report2; // 전체 리포트
 
-  const displayNick = account?.nick || (window.IQB_LANG === "en" ? "Guest" : "게스트");
+  const displayNick = account?.nick || (window.IQB_LANG === "en" ? "Guest" : window.IQB_LANG === "zh" ? "游客" : "게스트");
 
   if (!booted) return <div style={{ minHeight: "100vh", background: C.bg0 }} />;
 
