@@ -1170,7 +1170,7 @@ function App() {
               <Card key={p.id} style={{ padding: 16, marginBottom: 10, display: "flex", alignItems: "center", gap: 14 }}>
                 <div style={{ width: 42, height: 42, borderRadius: 12, background: `linear-gradient(135deg,${C.indigo},${C.me})`, display: "grid", placeItems: "center" }}><Ico name="bolt" c="#08121a" s={18} /></div>
                 <div style={{ flex: 1 }}><div style={{ fontWeight: 800 }}>{p.name}</div><div style={{ color: C.muted, fontSize: 12 }}>기간 내 하트 소모 없이 무제한</div></div>
-                <Btn onClick={() => buyPass(p)} style={{ padding: "10px 14px", fontSize: 14 }}>₩{p.price.toLocaleString()}</Btn>
+                <Btn onClick={() => buyPass(p)} style={{ padding: "10px 14px", fontSize: 14 }}>{"₩" + p.price.toLocaleString()}</Btn>
               </Card>
             ))}
             <Btn kind="ghost" onClick={() => setScreen("home")} style={{ width: "100%", marginTop: 8 }}>← 홈으로</Btn>
@@ -1443,7 +1443,7 @@ function App() {
               <Card key={it.id} style={{ padding: 18, marginBottom: 12, display: "flex", alignItems: "center", gap: 14 }}>
                 <div style={{ width: 44, height: 44, borderRadius: 12, background: `linear-gradient(135deg, ${[C.me, C.violetDeep, C.indigo, C.gold][i]}, ${[C.violet, C.indigo, C.violet, C.goldDeep][i]})`, flexShrink: 0 }} />
                 <div style={{ flex: 1 }}><div style={{ fontWeight: 800 }}>{it.name}</div><div style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>{it.desc}</div></div>
-                {owned[it.id] || (it.id === "report1" && owned.report2) ? <span style={{ color: C.mint, fontWeight: 800, fontSize: 14 }}>보유중</span> : <Btn onClick={() => buy(it.id, it.price)} style={{ padding: "10px 14px", fontSize: 14 }}>₩{it.price.toLocaleString()}</Btn>}
+                {owned[it.id] || (it.id === "report1" && owned.report2) ? <span style={{ color: C.mint, fontWeight: 800, fontSize: 14 }}>보유중</span> : <Btn onClick={() => buy(it.id, it.price)} style={{ padding: "10px 14px", fontSize: 14 }}>{"₩" + it.price.toLocaleString()}</Btn>}
               </Card>
             ))}
             <p style={{ color: C.muted, fontSize: 11.5, lineHeight: 1.6, marginTop: 8 }}>※ 가격은 예시입니다. 실제 결제는 인앱결제/PG(토스페이먼츠·포트원 등) 연동이 필요하며, 사업자 정산 계좌로 입금됩니다.</p>
@@ -1455,7 +1455,7 @@ function App() {
               {POINT_PACKS.map((pk) => (
                 <button key={pk.id} onClick={() => buyPoints(pk)} style={{ background: C.card, border: `1.5px solid ${C.line}`, borderRadius: 16, padding: "16px 12px", cursor: "pointer", fontFamily: FONT, color: C.text, boxShadow: C.shadow, textAlign: "center" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, fontSize: 18, fontWeight: 900, color: C.gold }}><Coin s={16} />{pk.amount.toLocaleString()}</div>
-                  <div style={{ color: C.muted, fontSize: 12, marginTop: 6 }}>₩{pk.price.toLocaleString()}</div>
+                  <div style={{ color: C.muted, fontSize: 12, marginTop: 6 }}>{"₩" + pk.price.toLocaleString()}</div>
                 </button>
               ))}
             </div>
@@ -1538,7 +1538,7 @@ function App() {
           <div onClick={(e) => e.stopPropagation()}>
             <Card glow style={{ padding: "26px 24px", width: "100%", maxWidth: 340, animation: "pop .25s ease" }}>
               <div style={{ fontWeight: 900, fontSize: 19, marginBottom: 6 }}>결제 확인</div>
-              <div style={{ color: C.sub, fontSize: 14, marginBottom: 18 }}>{DEMO_PAYMENT && <div style={{ display: "inline-block", background: `${C.mint}22`, color: C.mint, border: `1px solid ${C.mint}`, borderRadius: 999, padding: "8px 18px", fontSize: 20, fontWeight: 900, marginBottom: 12 }}>데모 버전 · 무료</div>}<br />결제 금액 <b style={{ color: DEMO_PAYMENT ? C.muted : C.text, textDecoration: DEMO_PAYMENT ? "line-through" : "none" }}>₩{modal.price.toLocaleString()}</b>{DEMO_PAYMENT && <b style={{ color: C.mint, fontSize: 26, marginLeft: 8 }}>₩0</b>}<br />{DEMO_PAYMENT && <span style={{ fontSize: 15, fontWeight: 700, color: C.sub }}>데모 버전이라 실제로 청구되지 않아요</span>}</div>
+              <div style={{ color: C.sub, fontSize: 14, marginBottom: 18 }}>{DEMO_PAYMENT && <div style={{ display: "inline-block", background: `${C.mint}22`, color: C.mint, border: `1px solid ${C.mint}`, borderRadius: 999, padding: "8px 18px", fontSize: 20, fontWeight: 900, marginBottom: 12 }}>데모 버전 · 무료</div>}<br />결제 금액 <b style={{ color: DEMO_PAYMENT ? C.muted : C.text, textDecoration: DEMO_PAYMENT ? "line-through" : "none" }}>{"₩" + modal.price.toLocaleString()}</b>{DEMO_PAYMENT && <b style={{ color: C.mint, fontSize: 26, marginLeft: 8 }}>₩0</b>}<br />{DEMO_PAYMENT && <span style={{ fontSize: 15, fontWeight: 700, color: C.sub }}>데모 버전이라 실제로 청구되지 않아요</span>}</div>
               <div style={{ display: "flex", gap: 10 }}><Btn kind="ghost" onClick={() => setModal(null)} disabled={buyBusy} style={{ flex: 1 }}>취소</Btn><Btn onClick={confirmBuy} disabled={buyBusy} style={{ flex: 1 }}>{buyBusy ? "처리 중…" : DEMO_PAYMENT ? "무료로 체험하기" : "결제하기"}</Btn></div>
             </Card>
           </div>
