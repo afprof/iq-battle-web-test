@@ -122,7 +122,7 @@ const FOE_NAMES = ["논리왕_민준", "퀀트_소피아", "두뇌풀가동", "I
 const STAKES = [100, 300, 500, 1000];
 const Q_PER_MATCH = 8;
 const Q_TIME = 15;
-let LIVE_POOL = []; // 실제 참가자 랭킹 캐시 (전국 순위 계산용 · 서버 get_leaderboard 결과)
+let IQ_POOL = []; // 세계 순위 계산용 · 서버 get_iq_pool 결과 (10판 이상 참가자의 IQ 추정값 목록)
 const AVG_REACTION = 6.8, PRO_REACTION = 4.0; // 비교 기준(초)
 const MAX_HEARTS = 3;        // 무료 연속 3판
 const HEART_REGEN = 30 * 60; // 30분당 1개 회복(초)
@@ -441,13 +441,23 @@ function detectCountry() {
 const Flag = ({ cc }) => (/^[A-Z]{2}$/.test(cc || "")
   ? <img src={'https://flagcdn.com/24x18/' + cc.toLowerCase() + '.png'} alt={cc} title={cc} width={20} height={15} style={{ marginRight: 8, borderRadius: 2, verticalAlign: "-2px", boxShadow: "0 0 0 1px rgba(255,255,255,.18)" }} />
   : null);
-async function loadLeaderboard() {
+async function loadIqPool() {
   try {
-    const rows = await sbFetch(`rpc/get_leaderboard`, { method: "POST", body: {} });
-    const list = (rows || []).map((r) => ({ nick: r.nickname, rating: r.rating, iq: r.iq, ts: r.updated_at, country: r.country }));
-    LIVE_POOL = list;
-    return list;
+    const a = await sbFetch("rpc/get_iq_pool", { method: "POST", body: {} });
+    IQ_POOL = Array.isArray(a) ? a : [];
+  } catch { /* 실패 시 기존 값 유지 */ }
+}
+async function loadRankings(mode) {
+  try {
+    const rows = await sbFetch("rpc/get_rankings", { method: "POST", body: { p_mode: mode, p_limit: 100 } });
+    return (rows || []).map((r) => ({ rank: Number(r.rank_no), nick: r.nickname, rating: r.rating, iq: r.iq, games: Number(r.games || 0), ts: r.updated_at, country: r.country }));
   } catch { return []; }
+}
+async function loadMyRanks() {
+  try {
+    const rows = await sbFetch("rpc/get_my_ranks", { method: "POST", body: {} });
+    return (rows && rows[0]) || null;
+  } catch { return null; }
 }
 
 /* ── 문항 은행 (Supabase questions 테이블) ──
@@ -558,7 +568,7 @@ function diffLabel(b) {
 const tierOf = (r) => r < 100 ? { name: "브론즈", color: "#c98d5b" } : r < 300 ? { name: "실버", color: "#c7ccda" } : r < 600 ? { name: "골드", color: C.gold } : r < 1000 ? { name: "플래티넘", color: "#5ee0d0" } : { name: "다이아", color: "#8ab6ff" };
 const rand = (a, b) => a + Math.random() * (b - a);
 const cdf = (z) => 1 / (1 + Math.exp(-1.702 * z));
-const pctlOf = (iq) => { const p = cdf((iq - 100) / 15) * 100; return { top: Math.max(0.1, Math.round((100 - p) * 10) / 10), rank: 1 + LIVE_POOL.filter((r) => r.iq > iq).length }; };
+const pctlOf = (iq) => { const p = cdf((iq - 100) / 15) * 100; return { top: Math.max(0.1, Math.round((100 - p) * 10) / 10), rank: 1 + IQ_POOL.filter((x) => x > iq).length }; };
 
 /* ── 아이콘 ── */
 const I = {
@@ -681,7 +691,7 @@ function App() {
   const [tleft, setTleft] = useState(Q_TIME);
   const [outcome, setOutcome] = useState(null);
   const [liveIQ, setLiveIQ] = useState(100);
-  const [live, setLive] = useState({ top: 50, rank: 640000 });
+  const [live, setLive] = useState(() => pctlOf(100));
   const [combo, setCombo] = useState(0);
   const [flash, setFlash] = useState(null);
 
@@ -692,7 +702,9 @@ function App() {
   const [recentQuestionIds, setRecentQuestionIds] = useState([]); // 최근 본 문항 id (반복 방지)
 
   // 공유 랭킹
-  const [liveBoard, setLiveBoard] = useState([]);
+  const [rankTab, setRankTab] = useState("battle"); // 배틀 랭킹 | IQ 랭킹
+  const [boards, setBoards] = useState({ battle: null, iq: null });
+  const [myRanks, setMyRanks] = useState(null);
 
   const R = useRef({ correct: 0, answered: 0, time: 0, fCorrect: 0, fTime: 0, combo: 0, maxIQ: 100, bestStreak: 0, log: [], responses: [], qs: [], foe: null, qLock: -1 });
   const qStart = useRef(0), qTimer = useRef(null);
@@ -820,13 +832,14 @@ function App() {
   }, [booted, account, rating, level, xp, points, streak, iqHistory, catAgg, equippedSkin, equippedBadge, recentQuestionIds, hearts]);
 
   // 앱 시작 시 실제 참가자 데이터 미리 불러오기 (결과 화면의 전국 순위 계산용)
-  useEffect(() => { loadLeaderboard(); }, []);
+  useEffect(() => { loadIqPool(); }, []);
 
   // 랭킹 화면 진입 시 공유 랭킹보드 불러오기
   useEffect(() => {
     if (screen !== "leaderboard") return;
     let live = true;
-    loadLeaderboard().then((rows) => { if (live) setLiveBoard(rows); });
+    Promise.all([loadRankings("battle"), loadRankings("iq"), loadIqPool()]).then(([b, q]) => { if (live) setBoards({ battle: b, iq: q }); });
+    if (account?.id) loadMyRanks().then((m) => { if (live) setMyRanks(m); });
     return () => { live = false; };
   }, [screen]);
 
@@ -941,7 +954,7 @@ function App() {
     };
     setQs(R.current.qs);
     setBqi(0); setMyScore(0); setFoeScore(0); setPicked(null); setFoePicked(null);
-    setLiveIQ(100); setLive({ top: 50, rank: 640000 }); setCombo(0); setOutcome(null);
+    setLiveIQ(100); setLive(pctlOf(100)); setCombo(0); setOutcome(null);
     setScreen("battle"); launch(0);
   }
   function launch(idx) {
@@ -1039,9 +1052,17 @@ function App() {
   }
   const buy = (item, price) => {
     if (!account?.id) { setScreen("needlogin"); return; }
+    if (DEMO_PAYMENT) { demoUnlock(item); return; } // 데모: 결제 화면 없이 바로 열기
     setModal({ item, price });
   };
-  function buyPoints(pack) { setModal({ item: "points:" + pack.id, price: pack.price, points: pack.amount, name: `포인트 ${pack.amount.toLocaleString()}P` }); }
+  function demoUnlock(it) {
+    track("purchase", { item: it, price: 0 });
+    if (String(it).startsWith("pass:")) setUnlimitedUntil(Date.now() + (it === "pass:day" ? 24 : 24 * 30) * 3600 * 1000);
+    else setOwned((o) => ({ ...o, [it]: true }));
+  }
+  function buyPoints(pack) {
+    if (DEMO_PAYMENT) { track("purchase", { item: "points:" + pack.id, price: 0 }); setPoints((x) => x + pack.amount); return; }
+    setModal({ item: "points:" + pack.id, price: pack.price, points: pack.amount, name: `포인트 ${pack.amount.toLocaleString()}P` }); }
   const [buyBusy, setBuyBusy] = useState(false);
   const confirmBuy = async () => {
     track("purchase", { item: modal.item, price: modal.price });
@@ -1112,7 +1133,7 @@ function App() {
   }
 
   const showNav = ["home", "leaderboard", "missions", "store"].includes(screen);
-  const myRank = 1 + liveBoard.filter((r) => r.rating > rating).length;
+  /* 내 순위는 서버(get_my_ranks)가 계산 — 랭킹 화면에서 불러옵니다 */
 
   // 리포트 파생 데이터
   const react = outcome?.react ?? 5.2;
@@ -1216,7 +1237,7 @@ function App() {
 
             <Card glow style={{ padding: "28px 22px", textAlign: "center", marginTop: 14 }}>
               <div style={{ fontSize: 29, fontWeight: 900, lineHeight: 1.25, letterSpacing: -0.5 }}>세계에서 가장 뛰어난<br /><span style={{ background: `linear-gradient(135deg,${C.me},${C.violet})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>IQ와 랭킹</span>에 도전하세요</div>
-              <p style={{ color: C.sub, fontSize: 14, lineHeight: 1.6, margin: "10px 0 18px" }}>문제를 풀 때마다 난이도가 실력에 맞춰 조정되고,<br />IQ 지수와 전국 순위가 실시간으로 갱신됩니다.</p>
+              <p style={{ color: C.sub, fontSize: 14, lineHeight: 1.6, margin: "10px 0 18px" }}>문제를 풀 때마다 난이도가 실력에 맞춰 조정되고,<br />IQ 지수와 세계 순위가 실시간으로 갱신됩니다.</p>
               <Btn kind="battle" onClick={goStake} style={{ width: "100%" }}>대결 상대 찾기 →</Btn>
               <div style={{ marginTop: 12, fontSize: 12.5, color: C.muted }}>
                 {unlimited ? <span style={{ color: C.gold, fontWeight: 700 }}>무제한 이용권 사용 중</span>
@@ -1401,7 +1422,7 @@ function App() {
                   <div style={{ width: 1, background: C.line }} />
                   <div style={{ flex: 1, textAlign: "center" }}><div style={{ fontSize: 11, color: C.muted }}>상위</div><div style={{ fontSize: 30, fontWeight: 900, color: C.gold }}>{outcome.top}%</div></div>
                   <div style={{ width: 1, background: C.line }} />
-                  <div style={{ flex: 1, textAlign: "center" }}><div style={{ fontSize: 11, color: C.muted }}>전국</div><div style={{ fontSize: 20, fontWeight: 900, color: C.text, marginTop: 6 }}>{outcome.rank.toLocaleString()}위</div></div>
+                  <div style={{ flex: 1, textAlign: "center" }}><div style={{ fontSize: 11, color: C.muted }}>{iqbT3("세계", "Global rank", "全球排名")}</div><div style={{ fontSize: 20, fontWeight: 900, color: C.text, marginTop: 6 }}>{outcome.rank.toLocaleString()}위</div></div>
                 </div>
                 {!reportTier1 && (
                   <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
@@ -1438,7 +1459,7 @@ function App() {
                 <div style={{ width: 1, background: C.line }} />
                 <div style={{ flex: 1, textAlign: "center" }}><div style={{ fontSize: 11, color: C.muted }}>상위</div><div style={{ fontSize: 30, fontWeight: 900, color: C.gold }}>{pctlOf(iqHistory[iqHistory.length - 1]).top}%</div></div>
                 <div style={{ width: 1, background: C.line }} />
-                <div style={{ flex: 1, textAlign: "center" }}><div style={{ fontSize: 11, color: C.muted }}>전국</div><div style={{ fontSize: 22, fontWeight: 900, color: C.text, marginTop: 5 }}>{pctlOf(iqHistory[iqHistory.length - 1]).rank.toLocaleString()}위</div></div>
+                <div style={{ flex: 1, textAlign: "center" }}><div style={{ fontSize: 11, color: C.muted }}>{iqbT3("세계", "Global rank", "全球排名")}</div><div style={{ fontSize: 22, fontWeight: 900, color: C.text, marginTop: 5 }}>{pctlOf(iqHistory[iqHistory.length - 1]).rank.toLocaleString()}위</div></div>
               </div>
               {!reportTier1 && (
                 <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
@@ -1531,21 +1552,62 @@ function App() {
         )}
 
         {/* ── 랭킹 ── */}
-        {screen === "leaderboard" && (
-          <div style={{ animation: "rise .4s ease" }}>
-            <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 4 }}>전국 랭킹</div>
-            <div style={{ color: C.sub, fontSize: 13, marginBottom: 16 }}>실제 참가자 {liveBoard.length >= 100 ? "상위 100명" : `${liveBoard.length.toLocaleString()}명`} · 누적 레이팅 기준</div>
-            {liveBoard.length === 0 && (
-              <div style={{ color: C.muted, fontSize: 13, textAlign: "center", padding: "28px 0" }}>아직 집계된 참가자가 없어요. 대결을 시작해 첫 기록을 남겨보세요.</div>
-            )}
-            {liveBoard.map((p, i) => (
-              <Row key={p.nick + p.ts} rank={i + 1} name={p.nick} right={`${p.rating} · IQ ${p.iq}`} medal={i} me={!!account && p.nick === account.nick} country={p.country} />
-            ))}
-            <div style={{ height: 1, background: C.line, margin: "12px 0" }} />
-            <Row rank={myRank} name={displayNick} right={`${rating} · ${tier.name}`} medal={99} me country={myCountry} />
-            <p style={{ color: C.muted, fontSize: 12, marginTop: 14, textAlign: "center" }}>대결에서 이겨 레이팅을 올리면 순위가 상승합니다.</p>
-          </div>
-        )}
+        {screen === "leaderboard" && (() => {
+          const isIq = rankTab === "iq";
+          const board = boards[rankTab];
+          const tabBtn = (id, label) => (
+            <button key={id} onClick={() => setRankTab(id)} style={{ flex: 1, padding: "10px 0", fontWeight: 900, fontSize: 14, borderRadius: 12, cursor: "pointer", fontFamily: "inherit", border: "1px solid " + (rankTab === id ? C.me : C.line), background: rankTab === id ? C.me + "22" : "transparent", color: rankTab === id ? C.me : C.sub }}>{label}</button>
+          );
+          const myRankNo = myRanks ? (isIq ? myRanks.iq_rank : myRanks.battle_rank) : null;
+          const myGames = myRanks ? Number(myRanks.my_games || 0) : 0;
+          const myIqShown = myRanks && myGames >= 10 && myRanks.my_iq != null ? myRanks.my_iq : null;
+          const total = myRanks ? Number(isIq ? myRanks.iq_total : myRanks.battle_total) : 0;
+          const cell = (main, sub) => (<span><b style={{ color: C.text, fontSize: 15 }}>{main}</b> <span style={{ fontSize: 11.5 }}>{sub}</span></span>);
+          let note;
+          if (!account) note = iqbT3("로그인하면 내 순위가 표시돼요.", "Log in to see your rank.", "登录后可查看你的排名。");
+          else if (myRanks && !myRankNo && isIq) note = iqbT3("IQ 랭킹은 10판 이상 플레이하면 집계돼요 (현재 " + myGames + "판).", "IQ ranking counts after 10+ games (now " + myGames + ").", "完成10局以上才会计入IQ排名(当前" + myGames + "局)。");
+          else if (myRanks && !myRankNo) note = iqbT3("대결을 1판 이상 하면 순위가 집계돼요.", "Play at least one battle to be ranked.", "至少进行1局对战才会上榜。");
+          else note = iqbT3("대결에서 이겨 레이팅을 올리면 순위가 상승합니다.", "Win battles to raise your rating and climb the ranks.", "赢得对战提升评分,排名就会上升。");
+          return (
+            <div style={{ animation: "rise .4s ease" }}>
+              <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 12 }}>{iqbT3("세계 랭킹", "World Ranking", "全球排行榜")}</div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                {tabBtn("battle", iqbT3("배틀 랭킹", "Battle Ranking", "对战排名"))}
+                {tabBtn("iq", iqbT3("IQ 랭킹", "IQ Ranking", "IQ排名"))}
+              </div>
+              <div style={{ color: C.sub, fontSize: 13, marginBottom: 16 }}>
+                {isIq
+                  ? iqbT3("최근 8판 평균 IQ 기준 · 10판 이상 플레이한 참가자", "By average IQ of last 8 games · players with 10+ games", "按最近8局平均IQ · 已进行10局以上的玩家")
+                  : iqbT3("누적 레이팅 기준 · 1판 이상 플레이한 참가자", "By cumulative rating · players with 1+ games", "按累计评分 · 已进行1局以上的玩家")}
+                {total > 0 ? " · " + total.toLocaleString() + iqbT3("명 집계", " ranked", "人上榜") : ""}
+              </div>
+              {board === null && (
+                <div style={{ color: C.muted, fontSize: 13, textAlign: "center", padding: "28px 0" }}>{iqbT3("불러오는 중…", "Loading…", "加载中…")}</div>
+              )}
+              {board !== null && board.length === 0 && (
+                <div style={{ color: C.muted, fontSize: 13, textAlign: "center", padding: "28px 0" }}>
+                  {isIq
+                    ? iqbT3("아직 10판 이상 플레이한 참가자가 없어요.", "No players with 10+ games yet.", "暂无已进行10局以上的玩家。")
+                    : iqbT3("아직 집계된 참가자가 없어요. 대결을 시작해 첫 기록을 남겨보세요.", "No ranked players yet. Start a battle to set the first record.", "暂无上榜玩家。开始对战,留下第一条记录吧。")}
+                </div>
+              )}
+              {(board || []).map((p) => (
+                <Row key={p.nick + p.ts} rank={p.rank} name={p.nick}
+                  right={isIq
+                    ? cell("IQ " + p.iq, iqbT3("레이팅 ", "Rating ", "评分 ") + p.rating)
+                    : cell(p.rating, p.games >= 10 && p.iq != null ? "IQ " + p.iq : "IQ —")}
+                  medal={p.rank - 1} me={!!account && p.nick === account.nick} country={p.country} />
+              ))}
+              <div style={{ height: 1, background: C.line, margin: "12px 0" }} />
+              <Row rank={myRankNo || "—"} name={displayNick}
+                right={isIq
+                  ? cell(myIqShown != null ? "IQ " + myIqShown : "IQ —", iqbT3("레이팅 ", "Rating ", "评分 ") + rating)
+                  : cell(rating, tier.name)}
+                medal={99} me country={myCountry} />
+              <p style={{ color: C.muted, fontSize: 12, marginTop: 14, textAlign: "center" }}>{note}</p>
+            </div>
+          );
+        })()}
 
         {/* ── 미션 ── */}
         {screen === "missions" && (
@@ -1567,7 +1629,7 @@ function App() {
             <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 4 }}>스토어</div>
             <div style={{ color: C.sub, fontSize: 13, marginBottom: 16 }}>{DEMO_PAYMENT ? <><b style={{ color: C.mint, fontSize: 22, fontWeight: 900 }}>데모 버전 · 무료</b><br /><span style={{ fontSize: 15, fontWeight: 700 }}>구매 버튼을 눌러도 실제로 청구되지 않아요</span></> : "운영 수익원 · 실제 결제로 구매합니다"}</div>
             {[
-              { id: "report1", name: "방금 결과 확인권", desc: "직전 대결의 최종 IQ · 상위% · 전국 순위만", price: 500 },
+              { id: "report1", name: "방금 결과 확인권", desc: "직전 대결의 최종 IQ · 상위% · 세계 순위만", price: 500 },
               { id: "report2", name: "프리미엄 리포트 (평생)", desc: "IQ 추이·IRT 능력추정·강약점 전체", price: 2900 },
               { id: "adfree", name: "광고 제거 (1회 결제)", desc: "한 번 결제로 대결 사이 광고 없이 몰입", price: 1000 },
             ].map((it, i) => (
@@ -1737,7 +1799,7 @@ function InfoModal({ rating, level, xp, onClose }) {
         </Sec>
 
         <Sec title="레이팅 (실력 점수)">
-          대결 결과로 오르내리는 실력 지표입니다. 승리하면 <b style={{ color: C.mint }}>+24</b>, 패배하면 <b style={{ color: C.foe }}>−19</b>, 무승부는 변동 없음. 레이팅이 티어를 결정하고, 전국 순위의 기준이 됩니다.
+          대결 결과로 오르내리는 실력 지표입니다. 승리하면 <b style={{ color: C.mint }}>+24</b>, 패배하면 <b style={{ color: C.foe }}>−19</b>, 무승부는 변동 없음. 레이팅이 티어를 결정하고, 세계 순위의 기준이 됩니다.
         </Sec>
 
         <Sec title="레벨 (Lv) · 경험치(XP)">
