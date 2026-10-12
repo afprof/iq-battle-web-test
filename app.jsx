@@ -834,6 +834,14 @@ function App() {
   // 앱 시작 시 실제 참가자 데이터 미리 불러오기 (결과 화면의 전국 순위 계산용)
   useEffect(() => { loadIqPool(); }, []);
 
+  // 데모: 분석 리포트를 열면 '방금 결과'가 바로 공개되고, 무료 안내 화면이 동시에 뜹니다.
+  useEffect(() => {
+    if (!DEMO_PAYMENT || screen !== "report" || !account?.id) return;
+    if (owned.report1 || owned.report2) return;
+    demoUnlock("report1");
+    setModal({ item: "report1", price: 500, demoNotice: true });
+  }, [screen]);
+
   // 랭킹 화면 진입 시 공유 랭킹보드 불러오기
   useEffect(() => {
     if (screen !== "leaderboard") return;
@@ -1052,7 +1060,7 @@ function App() {
   }
   const buy = (item, price) => {
     if (!account?.id) { setScreen("needlogin"); return; }
-    if (DEMO_PAYMENT) { demoUnlock(item); return; } // 데모: 결제 화면 없이 바로 열기
+    if (DEMO_PAYMENT) { demoUnlock(item); setModal({ item, price, demoNotice: true }); return; } // 데모: 권한은 바로 열고, 무료 안내 화면을 동시에 표시
     setModal({ item, price });
   };
   function demoUnlock(it) {
@@ -1061,7 +1069,7 @@ function App() {
     else setOwned((o) => ({ ...o, [it]: true }));
   }
   function buyPoints(pack) {
-    if (DEMO_PAYMENT) { track("purchase", { item: "points:" + pack.id, price: 0 }); setPoints((x) => x + pack.amount); return; }
+    if (DEMO_PAYMENT) { track("purchase", { item: "points:" + pack.id, price: 0 }); setPoints((x) => x + pack.amount); setModal({ item: "points:" + pack.id, price: pack.price, demoNotice: true }); return; }
     setModal({ item: "points:" + pack.id, price: pack.price, points: pack.amount, name: `포인트 ${pack.amount.toLocaleString()}P` }); }
   const [buyBusy, setBuyBusy] = useState(false);
   const confirmBuy = async () => {
@@ -1732,7 +1740,7 @@ function App() {
             <Card glow style={{ padding: "26px 24px", width: "100%", maxWidth: 340, animation: "pop .25s ease" }}>
               <div style={{ fontWeight: 900, fontSize: 19, marginBottom: 6 }}>결제 확인</div>
               <div style={{ color: C.sub, fontSize: 14, marginBottom: 18 }}>{DEMO_PAYMENT && <div style={{ display: "inline-block", background: `${C.mint}22`, color: C.mint, border: `1px solid ${C.mint}`, borderRadius: 999, padding: "8px 18px", fontSize: 20, fontWeight: 900, marginBottom: 12 }}>데모 버전 · 무료</div>}<br />결제 금액 <b style={{ color: DEMO_PAYMENT ? C.muted : C.text, textDecoration: DEMO_PAYMENT ? "line-through" : "none" }}>{"₩" + modal.price.toLocaleString()}</b>{DEMO_PAYMENT && <b style={{ color: C.mint, fontSize: 26, marginLeft: 8 }}>₩0</b>}<br />{DEMO_PAYMENT && <span style={{ fontSize: 15, fontWeight: 700, color: C.sub }}>데모 버전이라 실제로 청구되지 않아요</span>}</div>
-              <div style={{ display: "flex", gap: 10 }}><Btn kind="ghost" onClick={() => setModal(null)} disabled={buyBusy} style={{ flex: 1 }}>취소</Btn><Btn onClick={confirmBuy} disabled={buyBusy} style={{ flex: 1 }}>{buyBusy ? "처리 중…" : DEMO_PAYMENT ? "무료로 체험하기" : "결제하기"}</Btn></div>
+              <div style={{ display: "flex", gap: 10 }}>{modal.demoNotice ? <Btn onClick={() => setModal(null)} style={{ flex: 1 }}>확인</Btn> : <><Btn kind="ghost" onClick={() => setModal(null)} disabled={buyBusy} style={{ flex: 1 }}>취소</Btn><Btn onClick={confirmBuy} disabled={buyBusy} style={{ flex: 1 }}>{buyBusy ? "처리 중…" : DEMO_PAYMENT ? "무료로 체험하기" : "결제하기"}</Btn></>}</div>
             </Card>
           </div>
         </div>
