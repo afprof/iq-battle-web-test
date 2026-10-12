@@ -834,13 +834,12 @@ function App() {
   // 앱 시작 시 실제 참가자 데이터 미리 불러오기 (결과 화면의 전국 순위 계산용)
   useEffect(() => { loadIqPool(); }, []);
 
-  // 데모: 분석 리포트 화면에서 잠긴 단계(방금 결과 보기 ₩500 → 전체 리포트 업그레이드 ₩2,900)가 보일 때마다
-  // '데모 버전 · 무료' 안내 모달이 그 화면과 동시에 뜹니다.
+  // 데모: 잠긴 분석 리포트 화면(1회 ₩500 / 평생 ₩2,900 선택)이 보일 때 '데모 버전 · 무료' 안내 모달이 그 화면과 동시에 뜹니다.
   useEffect(() => {
     if (!DEMO_PAYMENT || screen !== "report" || !account?.id) return;
-    if (owned.report2) return;
-    setModal(owned.report1 ? { item: "report2", price: 2900 } : { item: "report1", price: 500 });
-  }, [screen, owned.report1, owned.report2]);
+    if (owned.report1 || owned.report2) return;
+    setModal({ item: "report1", price: 500 });
+  }, [screen]);
 
   // 랭킹 화면 진입 시 공유 랭킹보드 불러오기
   useEffect(() => {
@@ -1040,6 +1039,7 @@ function App() {
     setIqHistory((h) => [...h.slice(-7), finalIQ]);
     setLastLog(r.log);
     setCatAgg((agg) => { const n = { ...agg }; r.log.forEach((l) => { n[l.tag] = n[l.tag] || { c: 0, t: 0 }; n[l.tag] = { c: n[l.tag].c + (l.correct ? 1 : 0), t: n[l.tag].t + 1 }; }); return n; });
+    setOwned((o) => (o.report1 && !o.report2 ? { ...o, report1: false } : o)); // 1회 열람권은 새 대결 결과가 나오면 소진
     setOutcome({ res, mFinal: r.correct, fFinal: r.fCorrect, dP, dR, streakNow: ns, iq: finalIQ, theta: finalTheta, se: finalSE, ...pctlOf(finalIQ), xpGain: gain, react: +(r.time / r.answered).toFixed(1) });
     track("battle_complete", { result: res, iq: finalIQ });
     setScreen("result");
@@ -1154,7 +1154,7 @@ function App() {
   const ciMargin = Math.round(1.96 * seIQ) || 6;
 
   // 프리미엄 2단계: 1단계(₩500)는 방금 대결 결과만, 2단계(₩2,900)는 리포트 전체
-  const reportTier1 = !!(owned.report1 || owned.report2); // 결과 확인권 (또는 상위 등급 보유)
+  const reportTier1 = !!(owned.report1 || owned.report2); // 1회 열람권(이번 결과 한정) 또는 평생 이용 → 전체 리포트 열람 가능
   const reportTier2 = !!owned.report2; // 전체 리포트
 
   const displayNick = account?.nick || (window.IQB_LANG === "en" ? "Guest" : window.IQB_LANG === "zh" ? "游客" : "게스트");
@@ -1449,7 +1449,7 @@ function App() {
               <button onClick={() => setScreen("home")} style={{ background: "none", border: "none", color: C.violet, fontSize: 22, cursor: "pointer" }}>‹</button>
               <div style={{ fontWeight: 900, fontSize: 20 }}>분석 리포트</div>
               {reportTier2 && <span style={{ marginLeft: "auto", fontSize: 12, fontWeight: 800, color: C.gold, background: "rgba(255,206,77,0.12)", padding: "4px 10px", borderRadius: 8 }}>PREMIUM</span>}
-              {reportTier1 && !reportTier2 && <span style={{ marginLeft: "auto", fontSize: 12, fontWeight: 800, color: C.me, background: "rgba(62,224,207,0.12)", padding: "4px 10px", borderRadius: 8 }}>BASIC</span>}
+              {reportTier1 && !reportTier2 && <span style={{ marginLeft: "auto", fontSize: 12, fontWeight: 800, color: C.me, background: "rgba(62,224,207,0.12)", padding: "4px 10px", borderRadius: 8 }}>{iqbT3("1회 열람", "Single view", "单次查看")}</span>}
             </div>
 
             {/* 상단 요약 — 무료엔 음영, 결제 시 공개 */}
@@ -1464,14 +1464,13 @@ function App() {
               {!reportTier1 && (
                 <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
                   <span style={{ display: "flex", alignItems: "center", gap: 6, color: C.sub, fontWeight: 800, fontSize: 13 }}><Ico name="lock" c={C.gold} s={16} /> 결제 시 공개</span>
-                  <Btn onClick={() => buy("report1", 500)} style={{ padding: "8px 14px", fontSize: 12.5 }}>방금 결과 보기 · ₩500</Btn>
                 </div>
               )}
             </Card>
 
             {/* 프리미엄 상세 — 잠금/해제 */}
             <div style={{ position: "relative" }}>
-              <div style={{ filter: reportTier2 ? "none" : "blur(6px)", pointerEvents: reportTier2 ? "auto" : "none", userSelect: "none" }}>
+              <div style={{ filter: reportTier1 ? "none" : "blur(6px)", pointerEvents: reportTier1 ? "auto" : "none", userSelect: "none" }}>
                 <Card style={{ padding: 20, marginBottom: 12 }}>
                   <div style={{ fontWeight: 800, marginBottom: 6 }}>IQ 추이</div>
                   <div style={{ color: C.muted, fontSize: 12, marginBottom: 8 }}>최근 {iqHistory.length}경기 · 꾸준히 상승 중</div>
@@ -1529,25 +1528,35 @@ function App() {
 
               </div>
 
-              {!reportTier2 && (
+              {!reportTier1 && (
                 <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
                   <Card glow style={{ padding: "26px 22px", textAlign: "center", maxWidth: 340, width: "100%" }}>
-                    <div style={{ width: 52, height: 52, borderRadius: 15, margin: "0 auto 14px", background: `linear-gradient(135deg,${C.gold},${C.goldDeep})`, display: "grid", placeItems: "center" }}><Ico name="lock" c="#4a2d00" s={24} /></div>
-                    <div style={{ fontWeight: 900, fontSize: 19 }}>{reportTier1 ? "전체 리포트로 업그레이드" : "프리미엄 리포트"}</div>
+                    <div style={{ width: 52, height: 52, borderRadius: 15, margin: "0 auto 14px", background: "linear-gradient(135deg," + C.gold + "," + C.goldDeep + ")", display: "grid", placeItems: "center" }}><Ico name="lock" c="#4a2d00" s={24} /></div>
+                    <div style={{ fontWeight: 900, fontSize: 19 }}>{iqbT3("분석 리포트 열람", "Unlock your analysis report", "解锁分析报告")}</div>
                     <div style={{ color: C.sub, fontSize: 13.5, lineHeight: 1.7, margin: "10px 0 16px", textAlign: "left" }}>
-                      {reportTier1 ? "방금 결과는 이미 확인했어요. 결제하면 이런 내용까지 볼 수 있어요:" : "결제하면 이런 내용을 볼 수 있어요:"}<br />
+                      결제하면 이런 내용을 볼 수 있어요:<br />
                       <span style={{ color: C.me }}>✓</span> 경기별 <b>IQ 추이 그래프</b><br />
                       <span style={{ color: C.me }}>✓</span> <b>IQ 점수 구성 분해</b> (정확도·속도)<br />
                       <span style={{ color: C.me }}>✓</span> 누적 유형별 <b>강점·약점 인사이트</b><br />
                       <span style={{ color: C.me }}>✓</span> <b>반응속도</b> 상위권/전체 비교<br />
                       <span style={{ color: C.me }}>✓</span> IRT 기반 <b>능력치·신뢰구간</b>
                     </div>
-                    <Btn onClick={() => buy("report2", 2900)} style={{ width: "100%" }}>₩2,900 · 평생 이용</Btn>
-                    <div style={{ color: C.muted, fontSize: 11, marginTop: 10 }}>1회 결제 · 이후 모든 리포트 무제한 열람</div>
+                    <Btn kind="ghost" onClick={() => buy("report1", 500)} style={{ width: "100%" }}>{iqbT3("1회 보기 · ₩500", "View once · ₩500", "单次查看 · ₩500")}</Btn>
+                    <div style={{ color: C.muted, fontSize: 11, margin: "8px 0 14px" }}>{iqbT3("이번 대결 결과의 전체 리포트를 한 번 열람 (다음 대결 전까지)", "Full report for this battle result, one time (until your next battle)", "查看本局结果的完整报告一次(下一局之前有效)")}</div>
+                    <Btn onClick={() => buy("report2", 2900)} style={{ width: "100%" }}>{iqbT3("평생 이용 · ₩2,900", "Lifetime · ₩2,900", "终身使用 · ₩2,900")}</Btn>
+                    <div style={{ color: C.muted, fontSize: 11, marginTop: 8 }}>1회 결제 · 이후 모든 리포트 무제한 열람</div>
                   </Card>
                 </div>
               )}
             </div>
+
+            {reportTier1 && !reportTier2 && (
+              <Card style={{ padding: "18px 20px", marginTop: 12, textAlign: "center" }}>
+                <div style={{ fontWeight: 800, marginBottom: 6 }}>{iqbT3("평생 이용으로 업그레이드", "Upgrade to lifetime", "升级为终身使用")}</div>
+                <div style={{ color: C.sub, fontSize: 12.5, marginBottom: 12 }}>{iqbT3("지금은 1회 열람권으로 보고 있어요. 다음 대결부터도 계속 보려면:", "You're viewing this with a single-view pass. To keep seeing every report:", "当前使用的是单次查看券。如需之后每次都能查看:")}</div>
+                <Btn onClick={() => buy("report2", 2900)} style={{ width: "100%" }}>{iqbT3("평생 이용 · ₩2,900", "Lifetime · ₩2,900", "终身使用 · ₩2,900")}</Btn>
+              </Card>
+            )}
           </div>
         )}
 
@@ -1629,8 +1638,8 @@ function App() {
             <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 4 }}>스토어</div>
             <div style={{ color: C.sub, fontSize: 13, marginBottom: 16 }}>{DEMO_PAYMENT ? <><b style={{ color: C.mint, fontSize: 22, fontWeight: 900 }}>데모 버전 · 무료</b><br /><span style={{ fontSize: 15, fontWeight: 700 }}>구매 버튼을 눌러도 실제로 청구되지 않아요</span></> : "운영 수익원 · 실제 결제로 구매합니다"}</div>
             {[
-              { id: "report1", name: "방금 결과 확인권", desc: "직전 대결의 최종 IQ · 상위% · 세계 순위만", price: 500 },
-              { id: "report2", name: "프리미엄 리포트 (평생)", desc: "IQ 추이·IRT 능력추정·강약점 전체", price: 2900 },
+              { id: "report1", name: iqbT3("리포트 1회 열람권", "Report single-view pass", "报告单次查看券"), desc: iqbT3("직전 대결 결과의 전체 분석 리포트를 한 번 열람 (다음 대결 전까지)", "Full analysis report for your last battle, one time (until your next battle)", "查看上一局结果的完整分析报告一次(下一局之前有效)"), price: 500 },
+              { id: "report2", name: iqbT3("프리미엄 리포트 (평생)", "Premium report (lifetime)", "高级报告(终身)"), desc: iqbT3("모든 대결의 전체 분석 리포트를 평생 무제한 열람", "Unlimited lifetime access to the full analysis report of every battle", "终身无限次查看每一局的完整分析报告"), price: 2900 },
               { id: "adfree", name: "광고 제거 (1회 결제)", desc: "한 번 결제로 대결 사이 광고 없이 몰입", price: 1000 },
             ].map((it, i) => (
               <Card key={it.id} style={{ padding: 18, marginBottom: 12, display: "flex", alignItems: "center", gap: 14 }}>
