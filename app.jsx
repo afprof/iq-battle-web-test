@@ -834,9 +834,10 @@ function App() {
   // 앱 시작 시 실제 참가자 데이터 미리 불러오기 (결과 화면의 전국 순위 계산용)
   useEffect(() => { loadIqPool(); }, []);
 
-  // 데모: 잠긴 분석 리포트 화면(1회 ₩500 / 평생 ₩2,900 선택)이 보일 때 '데모 버전 · 무료' 안내 모달이 그 화면과 동시에 뜹니다.
+  // 데모: 잠긴 분석 리포트 화면(1회 ₩500 / 평생 ₩2,900 선택)과 대결 결과(승패) 화면의 잠금 카드가 보일 때
+  // '데모 버전 · 무료' 안내 모달이 그 화면과 동시에 뜹니다.
   useEffect(() => {
-    if (!DEMO_PAYMENT || screen !== "report" || !account?.id) return;
+    if (!DEMO_PAYMENT || (screen !== "report" && screen !== "result") || !account?.id) return;
     if (owned.report1 || owned.report2) return;
     setModal({ item: "report1", price: 500 });
   }, [screen]);
