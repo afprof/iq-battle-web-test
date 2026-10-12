@@ -1560,12 +1560,12 @@ function App() {
           );
           const myRankNo = myRanks ? (isIq ? myRanks.iq_rank : myRanks.battle_rank) : null;
           const myGames = myRanks ? Number(myRanks.my_games || 0) : 0;
-          const myIqShown = myRanks && myGames >= 10 && myRanks.my_iq != null ? myRanks.my_iq : null;
+          const myIqShown = myRanks && myGames >= 3 && myRanks.my_iq != null ? myRanks.my_iq : null;
           const total = myRanks ? Number(isIq ? myRanks.iq_total : myRanks.battle_total) : 0;
           const cell = (main, sub) => (<span><b style={{ color: C.text, fontSize: 15 }}>{main}</b> <span style={{ fontSize: 11.5 }}>{sub}</span></span>);
           let note;
           if (!account) note = iqbT3("로그인하면 내 순위가 표시돼요.", "Log in to see your rank.", "登录后可查看你的排名。");
-          else if (myRanks && !myRankNo && isIq) note = iqbT3("IQ 랭킹은 10판 이상 플레이하면 집계돼요 (현재 " + myGames + "판).", "IQ ranking counts after 10+ games (now " + myGames + ").", "完成10局以上才会计入IQ排名(当前" + myGames + "局)。");
+          else if (myRanks && !myRankNo && isIq) note = iqbT3("IQ 랭킹은 3판 이상 플레이하면 집계돼요 (현재 " + myGames + "판).", "IQ ranking counts after 3+ games (now " + myGames + ").", "完成3局以上才会计入IQ排名(当前" + myGames + "局)。");
           else if (myRanks && !myRankNo) note = iqbT3("대결을 1판 이상 하면 순위가 집계돼요.", "Play at least one battle to be ranked.", "至少进行1局对战才会上榜。");
           else note = iqbT3("대결에서 이겨 레이팅을 올리면 순위가 상승합니다.", "Win battles to raise your rating and climb the ranks.", "赢得对战提升评分,排名就会上升。");
           return (
@@ -1577,7 +1577,7 @@ function App() {
               </div>
               <div style={{ color: C.sub, fontSize: 13, marginBottom: 16 }}>
                 {isIq
-                  ? iqbT3("최근 8판 평균 IQ 기준 · 10판 이상 플레이한 참가자", "By average IQ of last 8 games · players with 10+ games", "按最近8局平均IQ · 已进行10局以上的玩家")
+                  ? iqbT3("최근 최대 8판 평균 IQ 기준 · 3판 이상 플레이한 참가자", "By average IQ of last up to 8 games · players with 3+ games", "按最近最多8局平均IQ · 已进行3局以上的玩家")
                   : iqbT3("누적 레이팅 기준 · 1판 이상 플레이한 참가자", "By cumulative rating · players with 1+ games", "按累计评分 · 已进行1局以上的玩家")}
                 {total > 0 ? " · " + total.toLocaleString() + iqbT3("명 집계", " ranked", "人上榜") : ""}
               </div>
@@ -1587,7 +1587,7 @@ function App() {
               {board !== null && board.length === 0 && (
                 <div style={{ color: C.muted, fontSize: 13, textAlign: "center", padding: "28px 0" }}>
                   {isIq
-                    ? iqbT3("아직 10판 이상 플레이한 참가자가 없어요.", "No players with 10+ games yet.", "暂无已进行10局以上的玩家。")
+                    ? iqbT3("아직 3판 이상 플레이한 참가자가 없어요.", "No players with 3+ games yet.", "暂无已进行3局以上的玩家。")
                     : iqbT3("아직 집계된 참가자가 없어요. 대결을 시작해 첫 기록을 남겨보세요.", "No ranked players yet. Start a battle to set the first record.", "暂无上榜玩家。开始对战,留下第一条记录吧。")}
                 </div>
               )}
@@ -1595,7 +1595,7 @@ function App() {
                 <Row key={p.nick + p.ts} rank={p.rank} name={p.nick}
                   right={isIq
                     ? cell("IQ " + p.iq, iqbT3("레이팅 ", "Rating ", "评分 ") + p.rating)
-                    : cell(p.rating, p.games >= 10 && p.iq != null ? "IQ " + p.iq : "IQ —")}
+                    : cell(p.rating, p.games >= 3 && p.iq != null ? "IQ " + p.iq : "IQ —")}
                   medal={p.rank - 1} me={!!account && p.nick === account.nick} country={p.country} />
               ))}
               <div style={{ height: 1, background: C.line, margin: "12px 0" }} />
