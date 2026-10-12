@@ -834,12 +834,13 @@ function App() {
   // 앱 시작 시 실제 참가자 데이터 미리 불러오기 (결과 화면의 전국 순위 계산용)
   useEffect(() => { loadIqPool(); }, []);
 
-  // 데모: 분석 리포트를 열면 잠긴 '방금 결과 보기 · ₩500' 화면과 함께 '데모 버전 · 무료' 안내 모달이 동시에 뜹니다.
+  // 데모: 분석 리포트 화면에서 잠긴 단계(방금 결과 보기 ₩500 → 전체 리포트 업그레이드 ₩2,900)가 보일 때마다
+  // '데모 버전 · 무료' 안내 모달이 그 화면과 동시에 뜹니다.
   useEffect(() => {
     if (!DEMO_PAYMENT || screen !== "report" || !account?.id) return;
-    if (owned.report1 || owned.report2) return;
-    setModal({ item: "report1", price: 500 });
-  }, [screen]);
+    if (owned.report2) return;
+    setModal(owned.report1 ? { item: "report2", price: 2900 } : { item: "report1", price: 500 });
+  }, [screen, owned.report1, owned.report2]);
 
   // 랭킹 화면 진입 시 공유 랭킹보드 불러오기
   useEffect(() => {
